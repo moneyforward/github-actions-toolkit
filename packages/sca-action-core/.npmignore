@@ -103,5 +103,14 @@ dist
 # TernJS port file
 .tern-port
 
+.circleci/
+.codecov.yml
+.eslintignore
+.eslintrc.js
+.mocharc.js
+gulpfile.js
+test/
+tsconfig.json
+
 /reports/
 /.vscode/
