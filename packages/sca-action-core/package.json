@@ -1,0 +1,27 @@
+{
+  "name": "@moneyforward/sca-action-core",
+  "version": "0.0.0",
+  "description": "Core modules for static code analysis in Github action",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "publishConfig": {
+    "registry":"https://npm.pkg.github.com/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moneyforward/github-actions-toolkit.git",
+    "directory": "packages/sca-action-core"
+  },
+  "keywords": [
+    "github",
+    "actions"
+  ],
+  "author": "Money Forward, Inc.",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/moneyforward/github-actions-toolkit/issues"
+  },
+  "homepage": "https://github.com/moneyforward/github-actions-toolkit#readme"
+}
