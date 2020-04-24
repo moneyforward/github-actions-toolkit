@@ -59,7 +59,7 @@ const measureChangeRanges = async (baseRef: string, headRef: string) => {
   });
 };
 
-export const analyzeCodeStatically = async (command: string, args = [], options: SpawnOptions = {}, transformers: stream.Transform[] = [], prepare = Promise.resolve(), exitStatusThreshold = 1) => {
+export const analyzeCodeStatically = async (command: string, args: string[] = [], options: SpawnOptions = {}, transformers: stream.Transform[] = [], prepare: Promise<unknown> = Promise.resolve(), exitStatusThreshold = 1) => {
   await prepare;
   console.log(`::group::Analyze code statically using ${command}`);
   return tool.execute<number>(command, args, options, exitStatusThreshold, child => new Promise((resolve, reject) => {
