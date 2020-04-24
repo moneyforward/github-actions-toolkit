@@ -4,7 +4,8 @@
   "description": "Core modules for static code analysis in Github action",
   "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "ncc build -m src/index.ts"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
@@ -28,6 +29,7 @@
     "@types/node": "^13.13.2",
     "@typescript-eslint/eslint-plugin": "^2.29.0",
     "@typescript-eslint/parser": "^2.29.0",
+    "@zeit/ncc": "^0.22.1",
     "eslint": "^6.8.0",
     "typescript": "^3.8.3"
   }
