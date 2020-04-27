@@ -14,7 +14,7 @@ export { tool };
 const debug = util.debuglog('@moneyforward/sca-action-core');
 
 const measureChangeRanges = async (baseRef: string, headRef: string) => {
-  debug('$s...%s', baseRef, headRef);
+  debug('%s...%s', baseRef, headRef);
   const command = 'git';
   const remote = await tool.execute(command, ['remote', '-v'], undefined, undefined, async child => {
     assert(child.stdout !== null); if (child.stdout == null) return '';
@@ -166,8 +166,8 @@ export abstract class StaticCodeAnalyzer {
     console.log(`::group::Analyze code statically using ${this.command}`);
     try {
       assert(process.env.GITHUB_BASE_REF, 'Environment variable `GITHUB_BASE_REF` is undefined.');
-      assert(process.env.GITHUB_HEAD_REF, 'Environment variable `GITHUB_HEAD_REF` is undefined.');
-      const changeRanges = await measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_HEAD_REF || '');
+      assert(process.env.GITHUB_SHA, 'Environment variable `GITHUB_SHA` is undefined.');
+      const changeRanges = await measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_SHA || '');
 
       const matcher = path.join(fs.mkdtempSync(path.join(os.tmpdir(), `-`)), 'problem-matcher.json');
       fs.writeFileSync(matcher, JSON.stringify(this.problemMatchers));
