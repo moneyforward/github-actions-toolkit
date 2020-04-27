@@ -6,6 +6,7 @@ import path from 'path';
 import readline from 'readline';
 import stream from 'stream';
 import util from 'util';
+import * as glob from '@actions/glob';
 import * as tool from './tool';
 
 export { tool };
@@ -69,6 +70,17 @@ export type Finder = (paths: string) => Promise<() => AsyncGenerator<string, voi
 export const find = async (paths: string): Promise<() => AsyncGenerator<string, void, unknown>> => {
   const generator = async function* (): AsyncGenerator<string, void, unknown> {
     for (const path of paths.replace(/[\r\n]+/g, '\n').split('\n').filter(line => line !== '')) yield path;
+  }
+  return generator;
+}
+
+export const findByGlob = async (patterns: string): Promise<() => AsyncGenerator<string, void, unknown>> => {
+  const globber = await glob.create(patterns);
+  const generator = async function* (): AsyncGenerator<string, void, unknown> {
+    for await (const filename of globber.globGenerator()) {
+      if ((await fs.promises.stat(filename)).isDirectory()) continue;
+      yield path.relative(process.cwd(), filename);
+    }
   }
   return generator;
 }
