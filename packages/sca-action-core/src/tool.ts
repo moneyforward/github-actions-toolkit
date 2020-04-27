@@ -6,6 +6,21 @@ import readline from 'readline';
 import stream from 'stream';
 import { StringDecoder } from 'string_decoder';
 
+
+export function sizeOf(value: string): number {
+  return Buffer.from(value).length;
+}
+
+function sizeOfEnvironment(env: NodeJS.ProcessEnv): number {
+  return Object.keys(env)
+    .map(key => sizeOf(`${key}=${env[key]} || '`))
+    .reduce((previous, current) => previous + current, 0);
+}
+
+export function calculateMaxArgumentsSize(process: NodeJS.Process) {
+  return process.platform === 'win32' ? 8_191 : (131_072 - 2_048 - sizeOfEnvironment(process.env));
+}
+
 export const execute = <T>(command: string, args: string[] = [], options: SpawnOptions = {}, exitStatusThreshold = 1, callback?: (child: ChildProcess) => Promise<T>): Promise<T> => {
   return new Promise<T>((resolve, reject) => {
     let exitStatus: number | null | undefined;
