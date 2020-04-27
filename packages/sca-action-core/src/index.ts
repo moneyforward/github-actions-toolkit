@@ -158,9 +158,9 @@ export abstract class StaticCodeAnalyzer {
   }
 
   async analyze(patterns: string = '.'): Promise<number> {
+    await this.prepare();
     console.log(`::group::Analyze code statically using ${this.command}`);
     try {
-      await this.prepare();
       assert(process.env.GITHUB_BASE_REF, 'Environment variable `GITHUB_BASE_REF` is undefined.');
       assert(process.env.GITHUB_HEAD_REF, 'Environment variable `GITHUB_HEAD_REF` is undefined.');
       const changeRanges = await measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_HEAD_REF || '');
