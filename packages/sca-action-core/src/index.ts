@@ -14,6 +14,7 @@ export { tool };
 const debug = util.debuglog('@moneyforward/sca-action-core');
 
 const measureChangeRanges = async (baseRef: string, headRef: string) => {
+  debug('$s...%s', baseRef, headRef);
   const command = 'git';
   const remote = await tool.execute(command, ['remote', '-v'], undefined, undefined, async child => {
     assert(child.stdout !== null); if (child.stdout == null) return '';
@@ -40,7 +41,9 @@ const measureChangeRanges = async (baseRef: string, headRef: string) => {
       }).then(sha1 => (sha1 || '').trim())
     )
     .reduce((promise, executor) => promise.then(async commits => commits.concat(await executor())), Promise.resolve([] as string[]));
-  const args = ['--no-pager', 'diff', '--no-prefix', '--no-color', '-U0', '--diff-filter=b', commits.join('...')];
+  const commitRange = commits.join('...');
+  debug('%s', commitRange);
+  const args = ['--no-pager', 'diff', '--no-prefix', '--no-color', '-U0', '--diff-filter=b', commitRange];
   return tool.execute(command, args, undefined, undefined, async child => {
     const changeRanges = new Map<string, [number, number][]>();
     assert(child.stdout !== null); if (child.stdout == null) return changeRanges;
@@ -57,6 +60,7 @@ const measureChangeRanges = async (baseRef: string, headRef: string) => {
       }
       const metadata = ((/^@@ (.*) @@.*$/.exec(line) || [])[1] || '').split(' ');
       const [start, lines = 1] = metadata[metadata.length - 1].split(',').map(Number).map(Math.abs);
+      debug('%s:%d,%d', name, start, lines);
       changeRanges.set(name, (changeRanges.get(name) || ([] as Array<[number, number]>)).concat([[start, start + lines - 1]]));
     }
     return changeRanges;
