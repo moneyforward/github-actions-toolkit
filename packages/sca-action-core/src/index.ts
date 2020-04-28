@@ -166,7 +166,7 @@ export abstract class StaticCodeAnalyzer {
     }));
   }
 
-  async analyze(patterns: string = '.'): Promise<number> {
+  async analyze(patterns = '.'): Promise<number> {
     await this.prepare();
     console.log(`::group::Analyze code statically using ${this.command}`);
     try {
