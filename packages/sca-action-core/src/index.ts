@@ -89,6 +89,10 @@ export const findByGlob = async (patterns: string): Promise<() => AsyncGenerator
   return generator;
 }
 
+interface Resolver {
+  resolve: (file: string) => string;
+}
+
 export abstract class StaticCodeAnalyzer {
   private readonly problemMatchers = {
     "problemMatcher": [
@@ -119,7 +123,7 @@ export abstract class StaticCodeAnalyzer {
 
   protected abstract createTransformStreams(): Transformers;
 
-  private execute(args: string[], changeRanges: Map<string, [number, number][]>): Promise<number> {
+  private execute(args: string[], changeRanges: Map<string, [number, number][]>, resolver: Resolver): Promise<number> {
     return tool.execute<number>(this.command, args, this.options, this.exitStatusThreshold, child => new Promise((resolve, reject) => {
       assert(child.stdout !== null);
       child.stdout && child.stdout.unpipe(process.stdout);
@@ -131,9 +135,10 @@ export abstract class StaticCodeAnalyzer {
         return new stream.Writable({
           objectMode: true,
           write: function (problem, _encoding, done) {
-            const name = path.relative(process.cwd(), problem.file);
+            const name = resolver.resolve(problem.file);
             const position = Number(problem.line);
             const ranges = changeRanges.get(name) || [];
+            debug('%s:%d = %s', name, position, ranges);
             for (const [start, end] of ranges) if (position >= start && position <= end) {
               const message = [
                 problem.severity,
@@ -167,7 +172,19 @@ export abstract class StaticCodeAnalyzer {
     try {
       assert(process.env.GITHUB_BASE_REF, 'Environment variable `GITHUB_BASE_REF` is undefined.');
       assert(process.env.GITHUB_SHA, 'Environment variable `GITHUB_SHA` is undefined.');
-      const changeRanges = await measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_SHA || '');
+      const [changeRanges, resolver] = await Promise.all([
+        measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_SHA || ''),
+        (async (): Promise<Resolver> => {
+          const cdup = await tool.substitute('git', ['rev-parse', '--show-cdup']);
+          const dirname = path.relative(path.resolve(process.cwd(), cdup), process.cwd());
+          debug('dirname: %s', dirname);
+          return {
+            resolve: file => {
+              return path.join(dirname, path.relative(process.cwd(), file));
+            }
+          }
+        })()
+      ]);
 
       const matcher = path.join(fs.mkdtempSync(path.join(os.tmpdir(), `-`)), 'problem-matcher.json');
       fs.writeFileSync(matcher, JSON.stringify(this.problemMatchers));
@@ -180,14 +197,14 @@ export abstract class StaticCodeAnalyzer {
       for await (const file of (await this.finder(patterns))()) {
         const length = tool.sizeOf(file);
         if ((length + size) > maxArgsSize) {
-          promises.push(this.execute(this.args.concat(files), changeRanges));
+          promises.push(this.execute(this.args.concat(files), changeRanges, resolver));
           files.length = 0;
           size = this.initArgumentsSize;
         }
         files.push(file);
         size += length;
       }
-      if (files.length) promises.push(this.execute(this.args.concat(files), changeRanges));
+      if (files.length) promises.push(this.execute(this.args.concat(files), changeRanges, resolver));
       console.log('::debug::%d promise(s)', promises.length);
       return await Promise.all(promises)
         .then(exitStatuses => exitStatuses.some(exitStatus => exitStatus > 0) ? 1 : 0)
