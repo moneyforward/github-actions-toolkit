@@ -115,7 +115,7 @@ export abstract class StaticCodeAnalyzer {
 
   protected initArgumentsSize: number;
 
-  protected constructor(protected command: string, protected args: string[] = [], protected options: SpawnOptions = {}, protected exitStatusThreshold = 1, protected finder: Finder = find) {
+  protected constructor(protected command: string, protected args: string[] = [], protected options: SpawnOptions = {}, protected exitStatusThreshold = 1, protected finder: Finder = find, protected title?: string) {
     this.initArgumentsSize = [this.command].concat(this.args).map(tool.sizeOf).reduce((previous, current) => previous + current, 0);
   }
 
@@ -168,7 +168,7 @@ export abstract class StaticCodeAnalyzer {
 
   async analyze(patterns = '.'): Promise<number> {
     await this.prepare();
-    console.log(`::group::Analyze code statically using ${this.command}`);
+    console.log(`::group::Analyze code statically using ${this.title || this.command}`);
     try {
       assert(process.env.GITHUB_BASE_REF, 'Environment variable `GITHUB_BASE_REF` is undefined.');
       assert(process.env.GITHUB_SHA, 'Environment variable `GITHUB_SHA` is undefined.');
