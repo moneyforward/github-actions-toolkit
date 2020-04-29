@@ -115,7 +115,7 @@ export abstract class StaticCodeAnalyzer {
 
   protected initArgumentsSize: number;
 
-  protected constructor(protected command: string, protected args: string[] = [], protected options: SpawnOptions = {}, protected exitStatusThreshold = 1, protected finder: Finder = find, protected title?: string) {
+  protected constructor(protected command: string, protected args: string[] = [], protected options: SpawnOptions = {}, protected exitStatusThreshold = 1, protected finder: Finder = find, protected title?: string, protected evaluateExitStatus?: (exitStatus: number) => boolean) {
     this.initArgumentsSize = [this.command].concat(this.args).map(tool.sizeOf).reduce((previous, current) => previous + current, 0);
   }
 
@@ -163,7 +163,7 @@ export abstract class StaticCodeAnalyzer {
           }
         });
       })()).once('error', reject);
-    }));
+    }), this.evaluateExitStatus);
   }
 
   async analyze(patterns = '.'): Promise<number> {

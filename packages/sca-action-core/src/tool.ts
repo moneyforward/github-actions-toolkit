@@ -21,7 +21,7 @@ export function calculateMaxArgumentsSize(process: NodeJS.Process) {
   return process.platform === 'win32' ? 8_191 : (131_072 - 2_048 - sizeOfEnvironment(process.env));
 }
 
-export const execute = <T>(command: string, args: string[] = [], options: SpawnOptions = {}, exitStatusThreshold = 1, callback?: (child: ChildProcess) => Promise<T>): Promise<T> => {
+export const execute = <T>(command: string, args: string[] = [], options: SpawnOptions = {}, exitStatusThreshold = 1, callback?: (child: ChildProcess) => Promise<T>, evaluateExitStatus = (exitStatus: number) => exitStatus < exitStatusThreshold): Promise<T> => {
   return new Promise<T>((resolve, reject) => {
     let exitStatus: number | null | undefined;
     const child = spawn(command, args, options).once('error', reject).once('exit', code => exitStatus = code);
@@ -29,7 +29,7 @@ export const execute = <T>(command: string, args: string[] = [], options: SpawnO
     child.stderr && child.stderr.pipe(process.stderr);
     const promise: Promise<T | undefined> = callback ? callback(child) : Promise.resolve(undefined);
     const exitListener = async (exitStatus: number | null) =>
-      exitStatus === null || exitStatus >= exitStatusThreshold ? reject(exitStatus) : resolve(await promise);
+      exitStatus === null || !evaluateExitStatus(exitStatus) ? reject(exitStatus) : resolve(await promise);
     if (exitStatus !== undefined) exitListener(exitStatus);
     child.once('exit', exitListener);
   });
