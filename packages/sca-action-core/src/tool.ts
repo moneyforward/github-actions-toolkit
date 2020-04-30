@@ -6,7 +6,6 @@ import readline from 'readline';
 import stream from 'stream';
 import { StringDecoder } from 'string_decoder';
 
-
 export function sizeOf(value: string): number {
   return Buffer.from(value).length;
 }
