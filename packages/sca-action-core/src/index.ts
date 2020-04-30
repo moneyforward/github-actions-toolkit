@@ -89,7 +89,7 @@ export const findByGlob = async (patterns: string): Promise<() => AsyncGenerator
   return generator;
 }
 
-interface Resolver {
+export interface Resolver {
   resolve: (file: string) => string;
 }
 
@@ -123,9 +123,8 @@ export abstract class StaticCodeAnalyzer {
 
   protected abstract createTransformStreams(): Transformers;
 
-  private execute(args: string[], changeRanges: Map<string, [number, number][]>, resolver: Resolver): Promise<number> {
-    return tool.execute<number>(this.command, args, this.options, this.exitStatusThreshold, child => new Promise((resolve, reject) => {
-      assert(child.stdout !== null);
+  protected execute(files: string[], changeRanges: Map<string, [number, number][]>, resolver: Resolver): Promise<number> {
+    return tool.execute<number>(this.command, this.args.concat(files), this.options, this.exitStatusThreshold, child => new Promise((resolve, reject) => {
       child.stdout && child.stdout.unpipe(process.stdout);
       const [prev = new stream.PassThrough(), next = prev]: stream.Transform[] = this.createTransformStreams().map(transformer => transformer.once('error', reject));
       debug('prev = %s, next = %s', prev, next);
@@ -204,7 +203,7 @@ export abstract class StaticCodeAnalyzer {
         files.push(file);
         size += length;
       }
-      if (files.length) promises.push(this.execute(this.args.concat(files), changeRanges, resolver));
+      if (files.length) promises.push(this.execute(files, changeRanges, resolver));
       console.log('::debug::%d promise(s)', promises.length);
       return await Promise.all(promises)
         .then(exitStatuses => exitStatuses.some(exitStatus => exitStatus > 0) ? 1 : 0)
