@@ -8,6 +8,7 @@ module.exports = {
         "eslint:recommended",
         "plugin:@typescript-eslint/eslint-recommended",
         "plugin:@typescript-eslint/recommended",
+        "plugin:security/recommended"
     ],
     "globals": {
         "Atomics": "readonly",
@@ -18,7 +19,8 @@ module.exports = {
         "ecmaVersion": 2019
     },
     "plugins": [
-        "@typescript-eslint"
+        "@typescript-eslint",
+        "security"
     ],
     "rules": {
     }
