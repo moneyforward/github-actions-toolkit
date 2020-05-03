@@ -93,6 +93,15 @@ export interface Resolver {
   resolve: (file: string) => string;
 }
 
+export interface Problem {
+  file: string;
+  line: string | number;
+  column?: string | number;
+  severity?: string;
+  message?: string;
+  code?: string;
+}
+
 export abstract class StaticCodeAnalyzer {
   private readonly problemMatchers = {
     "problemMatcher": [
@@ -100,7 +109,7 @@ export abstract class StaticCodeAnalyzer {
         "owner": "analyze-result.tsv",
         "pattern": [
           {
-            "regexp": "^\\[([^\\t]+)\\] Detected `([^\\t]+)` problem at line (\\d+), column (\\d+) of ([^\\t]+)\\t([^\\t]+)$",
+            "regexp": "^\\[([^\\t]+)\\] Detected `([^\\t]+)` problem at line (\\d+|NaN), column (\\d+|NaN) of ([^\\t]+)\\t([^\\t]+)$",
             "file": 5,
             "line": 3,
             "column": 4,
@@ -133,7 +142,7 @@ export abstract class StaticCodeAnalyzer {
         let count = 0;
         return new stream.Writable({
           objectMode: true,
-          write: function (problem, _encoding, done) {
+          write: function (problem: Problem, _encoding, done) {
             const name = resolver.resolve(problem.file);
             const position = Number(problem.line);
             const ranges = changeRanges.get(name) || [];
