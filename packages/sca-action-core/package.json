@@ -1,6 +1,6 @@
 {
   "name": "@moneyforward/sca-action-core",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Core modules for static code analysis in Github action",
   "main": "dist/index.js",
   "scripts": {
