@@ -34,16 +34,32 @@ export const execute = <T>(command: string, args: string[] = [], options: SpawnO
   });
 }
 
-export const stringify = async (readStream: stream.Readable) => {
-  const buffers = [];
-  for await (const buffer of readStream) buffers.push(buffer);
-  return Buffer.concat(buffers).toString().trim();
-};
+export async function stringify (readable: stream.Readable) {
+  const isObjectStream = (readable: stream.Readable) => readable.readableObjectMode;
+  const isTextStream = (readable: stream.Readable) => {
+    function readableEncoding(readable: stream.Readable) {
+      const encoding = (readable as any).readableEncoding;
+      if (encoding !== undefined) return encoding;
+      return (readable as any)._readableState ? (readable as any)._readableState.encoding : null
+    }
+    return readableEncoding(readable) !== null;
+  };
+
+  if (isObjectStream(readable) || isTextStream(readable)) {
+    let text = '';
+    for await (const buffer of readable) text += buffer.toString();
+    return text.trim();
+  } else {
+    const buffers: Buffer[] = [];
+    for await (const buffer of readable) buffers.push(buffer);
+    return Buffer.concat(buffers).toString().trim();
+  }
+}
 
 type StdioOption = "pipe" | "ipc" | "ignore" | "inherit" | stream.Stream | number | null | undefined;
 
 export const substitute = (command: string, args: string[] = [], options?: SpawnOptions, stdin?: StdioOption) => new Promise<string>((resolve, reject) => {
-  const child: ChildProcess = spawn(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }))
+  const child = spawn(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }))
     .once('error', reject);
   if (child.stdout === null) return resolve('');
   stringify(child.stdout).then(resolve).catch(reject);
