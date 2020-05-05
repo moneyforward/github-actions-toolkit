@@ -34,20 +34,26 @@ export const execute = <T>(command: string, args: string[] = [], options: SpawnO
   });
 }
 
-export async function stringify (readable: stream.Readable) {
-  const isObjectStream = (readable: stream.Readable) => readable.readableObjectMode;
-  const isTextStream = (readable: stream.Readable) => {
-    function readableEncoding(readable: stream.Readable) {
-      const encoding = (readable as any).readableEncoding;
+export async function stringify(readable: stream.Readable): Promise<string> {
+  const isObjectStream = (readable: stream.Readable): boolean => readable.readableObjectMode;
+  const isTextStream = (readable: stream.Readable): boolean => {
+    interface Readable extends stream.Readable {
+      readableEncoding?: string | null;
+      _readableState?: {
+        encoding: string | null;
+      };
+    }
+    function readableEncoding(readable: Readable): string | null {
+      const encoding = readable.readableEncoding;
       if (encoding !== undefined) return encoding;
-      return (readable as any)._readableState ? (readable as any)._readableState.encoding : null
+      return readable._readableState ? readable._readableState.encoding : null
     }
     return readableEncoding(readable) !== null;
   };
 
   if (isObjectStream(readable) || isTextStream(readable)) {
     let text = '';
-    for await (const buffer of readable) text += buffer.toString();
+    for await (const buffer of readable) text += String(buffer);
     return text.trim();
   } else {
     const buffers: Buffer[] = [];
