@@ -1,10 +1,11 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import readline from 'readline';
 import stream from 'stream';
-import { StringDecoder } from 'string_decoder';
+import { stringify } from './tool/stream';
+
+export * from './tool/stream';
 
 export function sizeOf(value: string): number {
   return Buffer.from(value).length;
@@ -32,34 +33,6 @@ export const execute = <T>(command: string, args: string[] = [], options: SpawnO
     if (exitStatus !== undefined) exitListener(exitStatus);
     child.once('exit', exitListener);
   });
-}
-
-export async function stringify(readable: stream.Readable): Promise<string> {
-  const isObjectStream = (readable: stream.Readable): boolean => readable.readableObjectMode;
-  const isTextStream = (readable: stream.Readable): boolean => {
-    interface Readable extends stream.Readable {
-      readableEncoding?: string | null;
-      _readableState?: {
-        encoding: string | null;
-      };
-    }
-    function readableEncoding(readable: Readable): string | null {
-      const encoding = readable.readableEncoding;
-      if (encoding !== undefined) return encoding;
-      return readable._readableState ? readable._readableState.encoding : null
-    }
-    return readableEncoding(readable) !== null;
-  };
-
-  if (isObjectStream(readable) || isTextStream(readable)) {
-    let text = '';
-    for await (const buffer of readable) text += String(buffer);
-    return text.trim();
-  } else {
-    const buffers: Buffer[] = [];
-    for await (const buffer of readable) buffers.push(buffer);
-    return Buffer.concat(buffers).toString().trim();
-  }
 }
 
 type StdioOption = "pipe" | "ipc" | "ignore" | "inherit" | stream.Stream | number | null | undefined;
@@ -103,40 +76,3 @@ export const installGem = async (isStrict = true, ...gemNames: string[]) =>
       })()
     ]).then(([gems,]) => gems);
   }).finally(() => console.log(`::endgroup::`));
-
-export class LineTransformStream extends stream.Transform {
-  private readonly decoder: StringDecoder;
-  private buffer: string;
-
-  constructor(encoding?: string) {
-    super({ writableObjectMode: true });
-    this.decoder = new StringDecoder(encoding);
-    this.buffer = '';
-  }
-
-  _transform(chunk: Buffer, encoding: string, done: stream.TransformCallback): void {
-    try {
-      const text = this.decoder.write(chunk);
-      const lines = (this.buffer + text).split(os.EOL);
-      const last = lines.pop();
-      for (const line of lines) this.push(line);
-      this.buffer = last || '';
-      done();
-    } catch (error) {
-      done(error);
-    }
-  }
-
-  _flush(done: stream.TransformCallback): void {
-    try {
-      const text = this.decoder.end();
-      const lines = (this.buffer + text).split(os.EOL);
-      const last = lines.pop();
-      for (const line of lines) this.push(line);
-      if (last && last.length) this.push(last);
-      done();
-    } catch (error) {
-      done(error);
-    }
-  }
-}
