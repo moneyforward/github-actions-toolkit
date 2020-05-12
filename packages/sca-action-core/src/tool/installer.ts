@@ -2,14 +2,22 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import stream from 'stream';
+import util from 'util';
 import { Lines } from '@moneyforward/stream-util';
 import Command, { Action } from '@moneyforward/command';
+
+const debug = util.debuglog('@moneyforward/sca-action-core/tool/installer');
 
 export type Installer = Action<string, Map<string, string>>;
 
 export class RubyGemsInstaller implements Installer {
-  private static async addPath(gemdir: Promise<string>, env: NodeJS.ProcessEnv = global.process.env): Promise<string> {
-    return env['PATH'] = [path.join(await gemdir, 'bin'), env.PATH || ''].join(path.delimiter);
+  private static async addPath(dirctory: Promise<string>, env: NodeJS.ProcessEnv = global.process.env): Promise<string> {
+    const gemdir = await dirctory;
+    const gempath = env['GEM_PATH'] = [gemdir, await Command.substitute('gem', ['env', 'path'])].join(path.delimiter);
+    const paths = env['PATH'] = [path.join(gemdir, 'bin'), env.PATH || ''].join(path.delimiter);
+    debug('GEM_PATH=%s', gempath);
+    debug('PATH=%s', paths);
+    return paths;
   }
 
   private dirctory: Promise<string>;
@@ -17,7 +25,7 @@ export class RubyGemsInstaller implements Installer {
   private bundledGems: Promise<Map<string, string>>;
 
   constructor(private isStrict = true, private process: NodeJS.Process = global.process) {
-    this.dirctory = fs.promises.mkdtemp(path.join(os.tmpdir(), 'ruby'));
+    this.dirctory = fs.promises.mkdtemp(path.join(os.tmpdir(), 'ruby-'));
     this.path = RubyGemsInstaller.addPath(this.dirctory, this.process.env);
     this.bundledGems = (async (): Promise<Map<string, string>> => {
       const gems = new Map<string, string>();
@@ -49,7 +57,7 @@ export class RubyGemsInstaller implements Installer {
   async execute(gemNames: Iterable<string> | AsyncIterable<string> = []): Promise<Map<string, string>> {
     return Promise.all([
       (async (): Promise<Map<string, string>> => {
-        const initArgs = ['install', '-N', '-i', await this.dirctory];
+        const initArgs = ['i', '-N', '-i', await this.dirctory];
         const command = new Command('gem', initArgs, undefined, async (_child, _command, args) => args.slice(initArgs.length));
         return command.execute(this.resolve(gemNames))
           .then(results => new Map<string, string>(
