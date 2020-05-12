@@ -1,0 +1,44 @@
+{
+  "name": "@moneyforward/stream-util",
+  "version": "0.0.0",
+  "description": "Functions useful when using with streams",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "gulp test",
+    "prepare": "gulp clean build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moneyforward/github-actions-toolkit.git",
+    "directory": "packages/stream-util"
+  },
+  "keywords": [
+    "stream",
+    "json"
+  ],
+  "author": "Money Forward, Inc.",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/moneyforward/github-actions-toolkit/issues"
+  },
+  "homepage": "https://github.com/moneyforward/github-actions-toolkit#readme",
+  "devDependencies": {
+    "@types/chai": "^4.2.11",
+    "@types/mocha": "^7.0.2",
+    "@types/node": "^13.13.5",
+    "@typescript-eslint/eslint-plugin": "^2.29.0",
+    "@typescript-eslint/parser": "^2.29.0",
+    "@zeit/ncc": "^0.22.1",
+    "chai": "^4.2.0",
+    "del": "^5.1.0",
+    "eslint": "^6.8.0",
+    "gulp": "^4.0.2",
+    "mocha": "^7.1.2",
+    "ts-node": "^8.10.1",
+    "typescript": "^3.8.3"
+  },
+  "dependencies": {}
+}
