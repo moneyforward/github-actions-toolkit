@@ -1,224 +1,121 @@
 import { strict as assert } from 'assert';
-import { SpawnOptions } from 'child_process';
+import { SpawnOptions, ChildProcess } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import readline from 'readline';
 import stream from 'stream';
 import util from 'util';
 import * as glob from '@actions/glob';
-import * as tool from './tool';
+import Command, { CommandConstructor, SpawnPrguments } from './tool/command';
+import Git from './tool/git';
+import { ChangeRanges, ReporterConstructor, ReporterRepository, Resolver, Statistic } from './reporter';
 
-export { tool };
-
+const pipeline = util.promisify(stream.pipeline);
 const debug = util.debuglog('@moneyforward/sca-action-core');
 
-const measureChangeRanges = async (baseRef: string, headRef: string) => {
-  debug('%s...%s', baseRef, headRef);
-  const command = 'git';
-  const remote = await tool.execute(command, ['remote', '-v'], undefined, undefined, async child => {
-    assert(child.stdout !== null); if (child.stdout == null) return '';
-    child.stdout.unpipe(process.stdout);
-    const lines = [];
-    for await (const line of readline.createInterface(child.stdout))
-      if (/\bgithub\.com\b/.test(line) && / \(fetch\)$/.test(line))
-        lines.push(line);
-    return lines.map(line => line.split('\t', 1)[0])[0];
-  });
-  const commits = await [baseRef, headRef]
-    .map(ref =>
-      () => tool.execute(command, ['rev-parse', '--verify', '-q', ref], undefined, undefined, async child => {
-        assert(child.stdout !== null); if (child.stdout == null) return;
-        child.stdout.unpipe(process.stdout);
-        return tool.stringify(child.stdout);
-      }).catch(async () => {
-        await tool.execute(command, ['fetch', '--depth=1', '-q', remote, ref]);
-        return tool.execute(command, ['rev-parse', '--verify', '-q', `${remote}/${ref}`], undefined, undefined, async child => {
-          assert(child.stdout !== null); if (child.stdout == null) return;
-          child.stdout.unpipe(process.stdout);
-          return tool.stringify(child.stdout);
-        });
-      }).then(sha1 => (sha1 || '').trim())
-    )
-    .reduce((promise, executor) => promise.then(async commits => commits.concat(await executor())), Promise.resolve([] as string[]));
-  const commitRange = commits.join('...');
-  debug('%s', commitRange);
-  const args = ['--no-pager', 'diff', '--no-prefix', '--no-color', '-U0', '--diff-filter=b', commitRange];
-  return tool.execute(command, args, undefined, undefined, async child => {
-    const changeRanges = new Map<string, [number, number][]>();
-    assert(child.stdout !== null); if (child.stdout == null) return changeRanges;
-    child.stdout.unpipe(process.stdout);
-    const lines = [];
-    for await (const line of readline.createInterface(child.stdout))
-      /^([@]{2}|[+]{3})\s/.test(line) && lines.push(line);
+debug('Node.js %s (arch: %s; platform: %s, cups: %d)', process.version, process.arch, process.platform, os.cpus().length);
 
-    let name = '';
-    for (const line of lines) {
-      if (/^[+]{3}\s/.test(line)) {
-        name = line.substring('+++ '.length);
-        continue;
-      }
-      const metadata = ((/^@@ (.*) @@.*$/.exec(line) || [])[1] || '').split(' ');
-      const [start, lines = 1] = metadata[metadata.length - 1].split(',').map(Number).map(Math.abs);
-      debug('%s:%d,%d', name, start, lines);
-      changeRanges.set(name, (changeRanges.get(name) || ([] as Array<[number, number]>)).concat([[start, start + lines - 1]]));
-    }
-    return changeRanges;
-  });
-};
+export * as tool from './tool';
+export * as reporter from './reporter';
 
-export type Transformers = [stream.Transform] | [stream.Transform, stream.Transform];
+export type Finder = {
+  find(paths: string): Iterable<string> | AsyncIterable<string>;
+}
 
-export type Finder = (paths: string) => Promise<() => AsyncGenerator<string, void, unknown>>
-
-export const find = async (paths: string): Promise<() => AsyncGenerator<string, void, unknown>> => {
-  const generator = async function* (): AsyncGenerator<string, void, unknown> {
-    for (const path of paths.replace(/[\r\n]+/g, '\n').split('\n').filter(line => line !== '')) yield path;
+export class PassThroughFinder implements Finder {
+  find(paths: string): Iterable<string> | AsyncIterable<string> {
+    return paths.replace(/[\r\n]+/g, '\n').split('\n').filter(line => line !== '');
   }
-  return generator;
 }
 
-export const findByGlob = async (patterns: string): Promise<() => AsyncGenerator<string, void, unknown>> => {
-  const globber = await glob.create(patterns);
-  const generator = async function* (): AsyncGenerator<string, void, unknown> {
-    for await (const filename of globber.globGenerator()) {
-      if ((await fs.promises.stat(filename)).isDirectory()) continue;
-      yield path.relative(process.cwd(), filename);
-    }
-  }
-  return generator;
-}
-
-export interface Resolver {
-  resolve: (file: string) => string;
-}
-
-export interface Problem {
-  file: string;
-  line: string | number;
-  column?: string | number;
-  severity?: string;
-  message?: string;
-  code?: string;
-}
-
-export abstract class StaticCodeAnalyzer {
-  private readonly problemMatchers = {
-    "problemMatcher": [
-      {
-        "owner": "analyze-result.tsv",
-        "pattern": [
-          {
-            "regexp": "^\\[([^\\t]+)\\] Detected `([^\\t]+)` problem at line (\\d+|NaN), column (\\d+|NaN) of ([^\\t]+)\\t([^\\t]+)$",
-            "file": 5,
-            "line": 3,
-            "column": 4,
-            "severity": 1,
-            "message": 6,
-            "code": 2
-          }
-        ]
+export class GlobFinder implements Finder {
+  find(patterns: string): Iterable<string> | AsyncIterable<string> {
+    return async function* (): AsyncGenerator<string> {
+      const globber = await glob.create(patterns);
+      for await (const filename of globber.globGenerator()) {
+        if ((await fs.promises.stat(filename)).isDirectory()) continue;
+        yield path.relative(process.cwd(), filename);
       }
-    ]
-  };
+    }();
+  }
+}
 
-  protected initArgumentsSize: number;
+export default abstract class StaticCodeAnalyzer {
+  protected static readonly reporterRepository = new ReporterRepository();
 
-  protected constructor(protected command: string, protected args: string[] = [], protected options: SpawnOptions = {}, protected exitStatusThreshold = 1, protected finder: Finder = find, protected title?: string, protected evaluateExitStatus?: (exitStatus: number) => boolean) {
-    this.initArgumentsSize = [this.command].concat(this.args).map(tool.sizeOf).reduce((previous, current) => previous + current, 0);
+  protected readonly git = new Git();
+  reporterTypeNotation: string | undefined;
+
+  protected constructor(protected command: string, protected args: string[] = [], protected options: SpawnOptions = {}, protected exitStatusThreshold?: number | ((exitStatus: number) => boolean), protected Finder: { new(): Finder } = PassThroughFinder, protected title?: string) {
   }
 
   protected abstract prepare(): Promise<unknown>;
 
-  protected abstract createTransformStreams(): Transformers;
+  protected abstract createTransformStreams(): stream.Transform[] | undefined;
 
-  protected execute(files: string[], changeRanges: Map<string, [number, number][]>, resolver: Resolver): Promise<number> {
-    return tool.execute<number>(this.command, this.args.concat(files), this.options, this.exitStatusThreshold, child => new Promise((resolve, reject) => {
-      child.stdout && child.stdout.unpipe(process.stdout);
-      const [prev = new stream.PassThrough(), next = prev]: stream.Transform[] = this.createTransformStreams().map(transformer => transformer.once('error', reject));
-      debug('prev = %s, next = %s', prev, next);
-      child.stdout && child.stdout.pipe(prev);
-      next.pipe((() => {
-        let count = 0;
-        return new stream.Writable({
-          objectMode: true,
-          write: function (problem: Problem, _encoding, done) {
-            const name = resolver.resolve(problem.file);
-            const position = Number(problem.line);
-            const ranges = changeRanges.get(name) || [];
-            debug('%s:%d = %s', name, position, ranges);
-            for (const [start, end] of ranges) if (position >= start && position <= end) {
-              const message = [
-                problem.severity,
-                problem.code,
-                position,
-                Number(problem.column),
-                name,
-                problem.message,
-              ].map(e => typeof e === 'number' ? e : (e === undefined ? '' : String(e)).replace(/\s+/g, ' '));
-              console.log(`[%s] Detected \`%s\` problem at line %d, column %d of %s\t%s`, ...message);
-              count += 1;
-              break;
-            }
-            done();
-          },
-          final: function (done) {
-            if (count > 0) {
-              console.log(`Detected ${count} issue(s).`);
-            }
-            done();
-            resolve(count > 0 ? 1 : 0);
-          }
-        });
-      })()).once('error', reject);
-    }), this.evaluateExitStatus);
+  protected get Command(): CommandConstructor {
+    return Command;
+  }
+
+  protected get Reporter(): ReporterConstructor {
+    return StaticCodeAnalyzer.reporterRepository.get(this.reporterTypeNotation);
+  }
+
+  protected async pipeline(stdout: stream.Readable | null, writable: stream.Writable, ...[command, args, options]: SpawnPrguments): Promise<[stream.Readable, ...stream.Writable[]]> {
+    debug('pipelining `%s` with %d argument(s)... (options: %o)', command, args.length, options);
+    const readable = stdout || stream.Readable.from([]);
+    readable.unpipe(process.stdout);
+    const transformers: stream.Writable[] = this.createTransformStreams() || [];
+    return [readable, ...transformers.concat(writable)];
   }
 
   async analyze(patterns = '.'): Promise<number> {
-    await this.prepare();
+    assert(process.env.GITHUB_BASE_REF, 'Environment variable `GITHUB_BASE_REF` is undefined.');
+    assert(process.env.GITHUB_SHA, 'Environment variable `GITHUB_SHA` is undefined.');
+
+    const measureChangeRanges = (async (): Promise<Map<string, [number, number][]>> => {
+      let remoteName: string | undefined;
+      for await (const remote of await this.git.listRemote()) if (/\bgithub\.com\b/.test(remote.url) && remote.mirror === 'fetch') {
+        debug('%o', remote);
+        remoteName = remote.name;
+        break;
+      }
+      return this.git.measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_SHA || '', remoteName);
+    })();
+    const createResolver = (async (): Promise<Resolver> => {
+      const cdup = await this.git.showCurrentDirectoryUp();
+      const dirname = path.relative(path.resolve(process.cwd(), cdup), process.cwd());
+      debug('dirname: %s', dirname);
+      return {
+        resolve: (file): string => path.join(dirname, path.relative(process.cwd(), file))
+      }
+    })();
+    const [changeRanges, resolver] = await Promise.all<ChangeRanges, Resolver, unknown>([
+      measureChangeRanges,
+      createResolver,
+      this.prepare()
+    ]);
     console.log(`::group::Analyze code statically using ${this.title || this.command}`);
     try {
-      assert(process.env.GITHUB_BASE_REF, 'Environment variable `GITHUB_BASE_REF` is undefined.');
-      assert(process.env.GITHUB_SHA, 'Environment variable `GITHUB_SHA` is undefined.');
-      const [changeRanges, resolver] = await Promise.all([
-        measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_SHA || ''),
-        (async (): Promise<Resolver> => {
-          const cdup = await tool.substitute('git', ['rev-parse', '--show-cdup']);
-          const dirname = path.relative(path.resolve(process.cwd(), cdup), process.cwd());
-          debug('dirname: %s', dirname);
-          return {
-            resolve: file => {
-              return path.join(dirname, path.relative(process.cwd(), file));
-            }
-          }
-        })()
-      ]);
-
-      const matcher = path.join(fs.mkdtempSync(path.join(os.tmpdir(), `-`)), 'problem-matcher.json');
-      fs.writeFileSync(matcher, JSON.stringify(this.problemMatchers));
-      console.log(`::add-matcher::${matcher}`);
-
-      const maxArgsSize = tool.calculateMaxArgumentsSize(process);
-      const promises: Promise<number>[] = [];
-      const files: string[] = [];
-      let size = this.initArgumentsSize;
-      for await (const file of (await this.finder(patterns))()) {
-        const length = tool.sizeOf(file);
-        if ((length + size) > maxArgsSize) {
-          promises.push(this.execute(this.args.concat(files), changeRanges, resolver));
-          files.length = 0;
-          size = this.initArgumentsSize;
-        }
-        files.push(file);
-        size += length;
-      }
-      if (files.length) promises.push(this.execute(files, changeRanges, resolver));
-      console.log('::debug::%d promise(s)', promises.length);
-      return await Promise.all(promises)
-        .then(exitStatuses => exitStatuses.some(exitStatus => exitStatus > 0) ? 1 : 0)
-        .finally(() => {
-          console.log('::remove-matcher owner=analyze-result.tsv::');
+      const reporter = new this.Reporter(changeRanges, resolver, [this.command, this.args, this.options]);
+      const promisify = async (child: ChildProcess, ...spawnArguments: SpawnPrguments): Promise<Statistic> => {
+        return new Promise((resolve, reject) => {
+          const writable = reporter.createReportWriter(resolve, spawnArguments);
+          this.pipeline(child.stdout, writable, ...spawnArguments).then(pipeline).catch(reject);
         });
+      };
+      const command = new this.Command<Statistic>(this.command, this.args, this.options, promisify, this.exitStatusThreshold);
+
+      await reporter.initialize();
+      try {
+        const results = await command.execute(new this.Finder().find(patterns));
+        const statistic = results.map(([result,]) => result).reduce(Statistic.add);
+        debug('%o', statistic);
+        console.log('Detected %d issue(s).', statistic.numberOfDetections);
+        return statistic.numberOfDetections > 0 ? 1 : 0;
+      } finally {
+        await reporter.finalize();
+      }
     } finally {
       console.log(`::endgroup::`);
     }

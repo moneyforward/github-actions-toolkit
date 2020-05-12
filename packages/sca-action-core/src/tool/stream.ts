@@ -2,7 +2,7 @@ import stream from 'stream';
 import { StringDecoder } from 'string_decoder';
 import util from 'util';
 
-const debug = util.debuglog('@moneyforward/sca-action-core');
+const debug = util.debuglog('@moneyforward/sca-action-core/tool/stream');
 
 export async function stringify(readable: stream.Readable): Promise<string> {
   const isObjectStream = (readable: stream.Readable): boolean => readable.readableObjectMode;
