@@ -15,8 +15,8 @@ const debug = util.debuglog('@moneyforward/sca-action-core');
 debug('Node.js %s (arch: %s; platform: %s, cups: %d)', process.version, process.arch, process.platform, os.cpus().length);
 
 export * as finder from './finder';
+export * as installer from './tool/installer';
 export * as reporter from './reporter';
-export * as tool from './tool';
 
 export default abstract class StaticCodeAnalyzer {
   protected static readonly reporterRepository = new ReporterRepository();
