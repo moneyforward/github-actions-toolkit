@@ -3,7 +3,7 @@ import os from 'os';
 import stream from 'stream';
 import util from 'util';
 import { Action } from './action'
-import { stringify } from './stream';
+import { stringify } from '@moneyforward/stream-util';
 
 const debug = util.debuglog('@moneyforward/sca-action-core/tool/command');
 

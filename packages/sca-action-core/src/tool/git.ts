@@ -1,7 +1,7 @@
 import stream from 'stream';
 import util from 'util';
 import Command from './command';
-import { Lines } from './stream';
+import { Lines } from '@moneyforward/stream-util';
 
 const debug = util.debuglog('@moneyforward/sca-action-core/tool/git');
 

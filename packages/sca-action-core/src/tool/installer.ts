@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import stream from 'stream';
 import { Action } from './action';
-import { Lines } from './stream';
+import { Lines } from '@moneyforward/stream-util';
 import Command from './command';
 
 export type Installer = Action<string, Map<string, string>>;
