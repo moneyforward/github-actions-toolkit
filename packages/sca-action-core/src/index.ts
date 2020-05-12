@@ -1,44 +1,22 @@
 import { strict as assert } from 'assert';
 import { SpawnOptions, ChildProcess } from 'child_process';
-import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import stream from 'stream';
 import util from 'util';
-import * as glob from '@actions/glob';
+import { FinderConstructor, PassThroughFinder } from './finder';
+import { ChangeRanges, ReporterConstructor, ReporterRepository, Resolver, Statistic } from './reporter';
 import Command, { CommandConstructor, SpawnPrguments } from './tool/command';
 import Git from './tool/git';
-import { ChangeRanges, ReporterConstructor, ReporterRepository, Resolver, Statistic } from './reporter';
 
 const pipeline = util.promisify(stream.pipeline);
 const debug = util.debuglog('@moneyforward/sca-action-core');
 
 debug('Node.js %s (arch: %s; platform: %s, cups: %d)', process.version, process.arch, process.platform, os.cpus().length);
 
-export * as tool from './tool';
+export * as finder from './finder';
 export * as reporter from './reporter';
-
-export type Finder = {
-  find(paths: string): Iterable<string> | AsyncIterable<string>;
-}
-
-export class PassThroughFinder implements Finder {
-  find(paths: string): Iterable<string> | AsyncIterable<string> {
-    return paths.replace(/[\r\n]+/g, '\n').split('\n').filter(line => line !== '');
-  }
-}
-
-export class GlobFinder implements Finder {
-  find(patterns: string): Iterable<string> | AsyncIterable<string> {
-    return async function* (): AsyncGenerator<string> {
-      const globber = await glob.create(patterns);
-      for await (const filename of globber.globGenerator()) {
-        if ((await fs.promises.stat(filename)).isDirectory()) continue;
-        yield path.relative(process.cwd(), filename);
-      }
-    }();
-  }
-}
+export * as tool from './tool';
 
 export default abstract class StaticCodeAnalyzer {
   protected static readonly reporterRepository = new ReporterRepository();
@@ -46,7 +24,14 @@ export default abstract class StaticCodeAnalyzer {
   protected readonly git = new Git();
   reporterTypeNotation: string | undefined;
 
-  protected constructor(protected command: string, protected args: string[] = [], protected options: SpawnOptions = {}, protected exitStatusThreshold?: number | ((exitStatus: number) => boolean), protected Finder: { new(): Finder } = PassThroughFinder, protected title?: string) {
+  protected constructor(
+    protected command: string,
+    protected args: string[] = [],
+    protected options: SpawnOptions = {},
+    protected exitStatusThreshold?: number | ((exitStatus: number) => boolean),
+    protected Finder: FinderConstructor = PassThroughFinder,
+    protected title?: string
+  ) {
   }
 
   protected abstract prepare(): Promise<unknown>;
