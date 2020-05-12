@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import stream from 'stream';
 import { Action } from './action';
-import { LineTransformStream } from './stream';
+import { Lines } from './stream';
 import Command from './command';
 
 export type Installer = Action<string, Map<string, string>>;
@@ -24,7 +24,7 @@ export class RubyGemsInstaller implements Installer {
       const gems = new Map<string, string>();
       const readable = fs.existsSync('Gemfile.lock') ? fs.createReadStream('Gemfile.lock') : stream.Readable.from([]);
       const filter = /^ {4}(.+) \((.+)\)$/;
-      for await (const line of readable.pipe(new LineTransformStream())) {
+      for await (const line of readable.pipe(new Lines())) {
         const [matches, key, value] = (filter.exec(line) || []);
         if (matches) gems.set(key, value);
       }

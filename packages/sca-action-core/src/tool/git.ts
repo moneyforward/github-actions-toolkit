@@ -1,7 +1,7 @@
 import stream from 'stream';
 import util from 'util';
 import Command from './command';
-import { LineTransformStream } from './stream';
+import { Lines } from './stream';
 
 const debug = util.debuglog('@moneyforward/sca-action-core/tool/git');
 
@@ -27,7 +27,7 @@ export default class Git {
   async listRemote(): Promise<AsyncIterable<Remote>> {
     return new Command('git', ['remote', '-v'], undefined, async child => {
       child.stdout && child.stdout.unpipe(process.stdout);
-      const readable = child.stdout ? child.stdout.pipe(new LineTransformStream()) : stream.Readable.from([]);
+      const readable = child.stdout ? child.stdout.pipe(new Lines()) : stream.Readable.from([]);
       return async function* (remotes: AsyncIterable<string>): AsyncGenerator<Remote> {
         for await (const line of remotes) {
           const [matches, name, url, mirror] = /^(.+)\t(.+) \((fetch|push)\)$/.exec(line) || [];
@@ -45,7 +45,7 @@ export default class Git {
     debug('%s', commits.join(' '));
     return new Command('git', args, undefined, async child => {
       child.stdout && child.stdout.unpipe(process.stdout);
-      return child.stdout ? child.stdout.pipe(new LineTransformStream()) : stream.Readable.from([]);
+      return child.stdout ? child.stdout.pipe(new Lines()) : stream.Readable.from([]);
     }).execute(commits).then(async function* (results) {
       for (const [result] of results) yield* result;
     });

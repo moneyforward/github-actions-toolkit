@@ -32,16 +32,17 @@ export async function stringify(readable: stream.Readable): Promise<string> {
   }
 }
 
-export class LineTransformStream extends stream.Transform {
+export class Lines extends stream.Transform {
   private readonly decoder: StringDecoder;
+  private count = 0;
   private buffer: string;
 
   constructor(encoding?: string) {
     super({
       objectMode: true,
-      transform: (chunk, _encoding, done) => {
+      transform: (chunk, encoding, done) => {
         try {
-          debug('%o %s', chunk, _encoding);
+          debug('%d: %s', this.count += 1, encoding);
           const isDecodable = ((chunk): boolean => {
             return Buffer.isBuffer(chunk) || chunk instanceof String || typeof chunk === 'string';
           })(chunk);
