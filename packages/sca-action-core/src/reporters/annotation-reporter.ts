@@ -2,8 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from "path";
 import util from 'util';
+import { SpawnPrguments } from '@moneyforward/command';
 import { Reporter, Resolver, Statistic, ReportWriter, Problem, ChangeRanges } from "../reporter";
-import { SpawnPrguments } from '../tool/command';
 
 const debug = util.debuglog('@moneyforward/sca-action-core/reporters/annotation-reporter');
 

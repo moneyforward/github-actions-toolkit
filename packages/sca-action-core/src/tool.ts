@@ -1,8 +1,6 @@
 import { RubyGemsInstaller } from './tool/installer';
 
-export * as command from './tool/command';
 export * as installer from './tool/installer'
-export * as stream from '@moneyforward/stream-util';
 
 export function installGem(isStrict = true, ...gemNames: string[]): Promise<Map<string, string>> {
   console.log(`::group::Installing gems...`);

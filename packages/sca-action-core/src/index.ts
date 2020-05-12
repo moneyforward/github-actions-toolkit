@@ -4,9 +4,9 @@ import os from 'os';
 import path from 'path';
 import stream from 'stream';
 import util from 'util';
+import Command, { CommandConstructor, SpawnPrguments } from '@moneyforward/command';
 import { FinderConstructor, PassThroughFinder } from './finder';
 import { ChangeRanges, ReporterConstructor, ReporterRepository, Resolver, Statistic } from './reporter';
-import Command, { CommandConstructor, SpawnPrguments } from './tool/command';
 import Git from './tool/git';
 
 const pipeline = util.promisify(stream.pipeline);

@@ -1,6 +1,6 @@
 import stream from "stream";
+import { SpawnPrguments } from "@moneyforward/command";
 import { ChangeRanges, Reporter, ReportWriter, Resolver, Statistic } from "../reporter";
-import { SpawnPrguments } from "../tool/command";
 
 export default class NopReporter implements Reporter {
   constructor(private readonly changeRanges: ChangeRanges, private readonly resolver: Resolver, private readonly commandPrguments: SpawnPrguments) { }

@@ -1,8 +1,8 @@
 import stream from 'stream';
 import util from 'util';
+import { SpawnPrguments } from '@moneyforward/command';
 import AnnotationReporter from './reporters/annotation-reporter';
 import NopReporter from './reporters/nop-reporter';
-import { SpawnPrguments } from './tool/command';
 
 const debug = util.debuglog('@moneyforward/sca-action-core/reporter');
 
