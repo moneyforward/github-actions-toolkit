@@ -1,0 +1,28 @@
+---
+name: '@moneyforward/command testing'
+on:
+  pull_request:
+    paths:
+      - packages/command/**
+  push:
+    branches:
+      - master
+    paths:
+      - packages/command/**
+defaults:
+  run:
+    working-directory: packages/command
+jobs:
+  unit-test:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        node: [10, 12, 14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/checkout@v2
+      - run: npm ci
+      - run: npm test
