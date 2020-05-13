@@ -1,5 +1,4 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import os from 'os';
 import stream from 'stream';
 import util from 'util';
 import { stringify } from '@moneyforward/stream-util';
@@ -9,7 +8,7 @@ const debug = util.debuglog('@moneyforward/command');
 type StdioOption = "pipe" | "ipc" | "ignore" | "inherit" | stream.Stream | number | null | undefined;
 
 export interface Action<T, U> {
-  execute: (args?: Iterable<T> | AsyncIterable<T>) => Promise<U>;
+  execute(args?: Iterable<T> | AsyncIterable<T>): U | PromiseLike<U>;
 }
 
 export type CommandConstructor = {
@@ -25,7 +24,28 @@ export type CommandConstructor = {
 
 export type SpawnPrguments = Parameters<typeof spawn>
 
-export default class Command<T = void> implements Action<string, [T, number][]> {
+export type Reducer<T, U = T> = (previous: U, current: T, index: number) => U;
+
+export async function reduce<T, U = T>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T, U>, initValue?: U): Promise<U> {
+  const iterator = asyncIterable[Symbol.asyncIterator]();
+  let next;
+  if ((next = await iterator.next()).done) {
+    if (initValue === undefined) {
+      throw new TypeError('Reduce of empty array with no initial value');
+    } else {
+      return initValue;
+    }
+  }
+  let index = 0;
+  let previous: U = initValue === undefined ? next.value : reducer(initValue, next.value, index);
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    if ((next = await iterator.next()).done) return previous;
+    previous = reducer(previous, next.value, index += 1);
+  }
+}
+
+export default class Command<T = void> implements Action<string, AsyncIterable<[T, number]>> {
   protected static sizeOf(value: string): number {
     return Buffer.from(value).length;
   }
@@ -46,24 +66,28 @@ export default class Command<T = void> implements Action<string, [T, number][]> 
       + Math.max(0, argumentsSizeMargin);
   }
 
-  static async execute<T = void>(
+  static async execute<T = void, U = [T, number]>(
     command: string,
     args: readonly string[] = [],
     options: SpawnOptions = {},
     exitStatusThreshold = 1,
     promisify?: (child: ChildProcess) => Promise<T>,
     evaluateExitStatus = (exitStatus: number): boolean => exitStatus < exitStatusThreshold,
-    reduce = (results: [T, number][]): T | PromiseLike<T> => results[0][0]
-  ): Promise<T> {
-    return new Command<T>(command, args, options, promisify, evaluateExitStatus).execute().then(reduce);
+    [reducer, initValue] = [(previous: U): U => previous, undefined]
+  ): Promise<U> {
+    const results = new Command<T>(command, args, options, promisify, evaluateExitStatus).execute();
+    return reduce(results, reducer, initValue);
   }
 
   static async substitute(command: string, args: readonly string[] = [], options?: SpawnOptions, stdin?: StdioOption): Promise<string> {
-    return new Command(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }), async child => {
+    const results = new Command(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }), async child => {
       if (child.stdout === null) return '';
       child.stdout.unpipe(process.stdout);
       return stringify(child.stdout);
-    }).execute().then(results => results.map(([result]) => result).join(os.EOL).trimEnd()).catch(() => '');
+    }).execute();
+    return reduce<[string, number], string[]>(results, (previous, [current]) => {
+      return previous.concat(current);
+    }, []).then(result => result.join().replace(/((\r\n)+|\n+)$/, '')).catch(() => '');
   }
 
   protected readonly initArgumentsSize: number;
@@ -107,14 +131,16 @@ export default class Command<T = void> implements Action<string, [T, number][]> 
     });
   }
 
-  async execute(args?: Iterable<string> | AsyncIterable<string>): Promise<[T, number][]> {
-    const promises: Promise<[T, number]>[] = [];
-    const promiseToExecuteCommand = (args: string[]): void => {
-      promises.push(this._execute(args));
-      debug('%d: Promise to execute `%s` ', promises.length, this.command);
+  async * execute(args?: Iterable<string> | AsyncIterable<string>): AsyncIterable<[T, number]> {
+    let numberOfPromises = 0;
+    const command = this.command;
+    const execute = this._execute.bind(this);
+    const promiseToExecuteCommand = async function* (args: string[]): AsyncIterable<[T, number]> {
+      debug('%d: Promise to execute `%s` ', numberOfPromises += 1, command);
+      yield execute(args);
     }
     if (args === undefined) {
-      promiseToExecuteCommand([]);
+      yield* promiseToExecuteCommand([]);
     } else {
       const maxArgsSize = Command.calculateMaxArgumentsSize();
       const buffer: string[] = [];
@@ -122,16 +148,15 @@ export default class Command<T = void> implements Action<string, [T, number][]> 
       for await (const arg of args) {
         const length = Command.sizeOf(arg);
         if ((length + size) > maxArgsSize) {
-          promiseToExecuteCommand(buffer);
+          yield* promiseToExecuteCommand(buffer);
           buffer.length = 0;
           size = this.initArgumentsSize;
         }
         buffer.push(arg);
         size += length;
       }
-      if (buffer.length) promiseToExecuteCommand(buffer);
+      if (buffer.length) yield* promiseToExecuteCommand(buffer);
     }
-    debug('%s %d promise(s)', this.command, promises.length);
-    return Promise.all(promises);
+    debug('%s %d promise(s)', this.command, numberOfPromises);
   }
 }
