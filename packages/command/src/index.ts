@@ -8,7 +8,7 @@ const debug = util.debuglog('@moneyforward/command');
 type StdioOption = "pipe" | "ipc" | "ignore" | "inherit" | stream.Stream | number | null | undefined;
 
 export interface Action<T, U> {
-  execute(args?: Iterable<T> | AsyncIterable<T>): U | PromiseLike<U>;
+  execute(args?: Iterable<T> | AsyncIterable<T>): U;
 }
 
 export type CommandConstructor = {
@@ -19,7 +19,7 @@ export type CommandConstructor = {
     promisify?: (child: ChildProcess, command: string, args: readonly string[], options: SpawnOptions) => Promise<T>,
     exitStatusThreshold?: number | ((exitStatus: number) => boolean),
     argumentsSizeMargin?: number
-  ): Action<string, [T, number][]>;
+  ): Action<string, AsyncIterable<[T, number]>>;
 }
 
 export type SpawnPrguments = Parameters<typeof spawn>
