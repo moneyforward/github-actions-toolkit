@@ -2,22 +2,9 @@ import { expect } from 'chai';
 import os from 'os';
 import stream from 'stream';
 import { stringify } from '@moneyforward/stream-util';
-import Command, { reduce } from '../src/index';
+import Command from '../src/index';
 
 describe('command', () => {
-  describe('reduce', () => {
-    it('should return single output value', async () => {
-      const numbers = [1, 2, 3];
-      const sum = (previous: number, current: number): number => previous + current;
-      const expected = numbers.reduce(sum);
-      const actual = await reduce(
-        async function* (numbers): AsyncGenerator<number> { for (const n of numbers) yield n; }(numbers),
-        sum, 0
-      );
-      expect(actual).to.equal(expected);
-    });
-  });
-
   describe('Command', () => {
     describe('Command.execute', () => {
       it('should return single output value', async () => {

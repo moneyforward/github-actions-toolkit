@@ -1,7 +1,7 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import stream from 'stream';
 import util from 'util';
-import { stringify } from '@moneyforward/stream-util';
+import { stringify, reduce } from '@moneyforward/stream-util';
 
 const debug = util.debuglog('@moneyforward/command');
 
@@ -23,27 +23,6 @@ export type CommandConstructor = {
 }
 
 export type SpawnPrguments = Parameters<typeof spawn>
-
-export type Reducer<T, U = T> = (previous: U, current: T, index: number) => U;
-
-export async function reduce<T, U = T>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T, U>, initValue?: U): Promise<U> {
-  const iterator = asyncIterable[Symbol.asyncIterator]();
-  let next;
-  if ((next = await iterator.next()).done) {
-    if (initValue === undefined) {
-      throw new TypeError('Reduce of empty array with no initial value');
-    } else {
-      return initValue;
-    }
-  }
-  let index = 0;
-  let previous: U = initValue === undefined ? next.value : reducer(initValue, next.value, index);
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    if ((next = await iterator.next()).done) return previous;
-    previous = reducer(previous, next.value, index += 1);
-  }
-}
 
 export default class Command<T = void> implements Action<string, AsyncIterable<[T, number]>> {
   protected static sizeOf(value: string): number {
