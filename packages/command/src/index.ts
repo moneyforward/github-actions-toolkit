@@ -1,7 +1,7 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import stream from 'stream';
 import util from 'util';
-import { stringify, reduce } from '@moneyforward/stream-util';
+import { arrayify, reduce, stringify, Reducer } from '@moneyforward/stream-util';
 
 const debug = util.debuglog('@moneyforward/command');
 
@@ -20,9 +20,9 @@ export type CommandConstructor = {
     exitStatusThreshold?: number | ((exitStatus: number) => boolean),
     argumentsSizeMargin?: number
   ): Action<string, AsyncIterable<[T, number]>>;
-}
+};
 
-export type SpawnPrguments = Parameters<typeof spawn>
+export type SpawnPrguments = Parameters<typeof spawn>;
 
 export default class Command<T = void> implements Action<string, AsyncIterable<[T, number]>> {
   protected static sizeOf(value: string): number {
@@ -52,7 +52,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
     exitStatusThreshold = 1,
     promisify?: (child: ChildProcess) => Promise<T>,
     evaluateExitStatus = (exitStatus: number): boolean => exitStatus < exitStatusThreshold,
-    [reducer, initValue] = [(previous: U): U => previous, undefined]
+    [reducer, initValue]: [Reducer<[T, number], U>, U | undefined] = [(previous: U): U => previous, undefined]
   ): Promise<U> {
     const results = new Command<T>(command, args, options, promisify, evaluateExitStatus).execute();
     return reduce(results, reducer, initValue);
@@ -64,9 +64,12 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
       child.stdout.unpipe(process.stdout);
       return stringify(child.stdout);
     }).execute();
-    return reduce<[string, number], string[]>(results, (previous, [current]) => {
-      return previous.concat(current);
-    }, []).then(result => result.join().replace(/((\r\n)+|\n+)$/, '')).catch(() => '');
+    return arrayify(results)
+      .then(results => results.map(([result]) => result).join().replace(/((\r\n)+|\n+)$/, ''))
+      .catch(error => {
+        debug('%s', error);
+        return '';
+      });
   }
 
   protected readonly initArgumentsSize: number;
@@ -115,7 +118,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
     const command = this.command;
     const execute = this._execute.bind(this);
     const promiseToExecuteCommand = async function* (args: string[]): AsyncIterable<[T, number]> {
-      debug('%d: Promise to execute `%s` ', numberOfPromises += 1, command);
+      debug('%d: Promise to execute `%s` (arguments length: %d)', numberOfPromises += 1, command, args.length);
       yield execute(args);
     }
     if (args === undefined) {
