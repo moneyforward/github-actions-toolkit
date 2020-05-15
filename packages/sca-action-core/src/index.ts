@@ -13,7 +13,7 @@ import Git, { Remote } from './tool/git';
 const pipeline = util.promisify(stream.pipeline);
 const debug = util.debuglog('@moneyforward/sca-action-core');
 
-debug('Node.js %s (arch: %s; platform: %s, cups: %d)', process.version, process.arch, process.platform, os.cpus().length);
+debug('Node.js %s (arch: %s; platform: %s; cups: %d)', process.version, process.arch, process.platform, os.cpus().length);
 
 export * as finder from './finder';
 export * as installer from './tool/installer';

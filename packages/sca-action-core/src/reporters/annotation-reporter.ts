@@ -13,7 +13,7 @@ export default class AnnotationReporter implements Reporter {
       "owner": "@moneyforward/sca-action-core/reporters/annotation-reporter#0",
       "pattern": [
         {
-          "regexp": /^\[([^\t]+)\] Detected `([^\t]*)` problem at line (\d+), column (\d+) of ([^\t]+)\t([^\t]+)$/.toString(),
+          "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+)(?:|, column (\d+)) of ([^\t]+)\t([^\t]+)$/.toString(),
           "file": 5,
           "line": 3,
           "column": 4,
@@ -22,20 +22,7 @@ export default class AnnotationReporter implements Reporter {
           "code": 2
         }
       ]
-    },
-    {
-      "owner": "@moneyforward/sca-action-core/reporters/annotation-reporter#1",
-      "pattern": [
-        {
-          "regexp": /^\[([^\t]+)\] Detected `([^\t]*)` problem at line (\d+) of ([^\t]+)\t([^\t]+)$/.toString(),
-          "file": 4,
-          "line": 3,
-          "severity": 1,
-          "message": 5,
-          "code": 2
-        }
-      ]
-    },
+    }
   ];
 
   private static readonly problemMatchers = JSON.stringify({
@@ -77,13 +64,13 @@ export default class AnnotationReporter implements Reporter {
               const column = Number(problem.column);
               const message = [
                 problem.severity,
-                problem.code,
+                problem.code === undefined ? 'the' : ` \`${problem.code}\``,
                 line,
                 Number.isNaN(column) ? '' : `, column ${column}`,
                 file,
                 problem.message,
               ].map(e => typeof e === 'number' ? e : (e === undefined ? '' : String(e)).replace(/\s+/g, ' '));
-              console.log('[%s] Detected `%s` problem at line %d%s of %s\t%s', ...message);
+              console.log('[%s] Detected%s problem at line %d%s of %s\t%s', ...message);
               this.numberOfDetections += 1;
               break;
             }
