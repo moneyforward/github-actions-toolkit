@@ -26,7 +26,7 @@ export type CommandConstructor = {
 export type SpawnPrguments = Parameters<typeof spawn>;
 
 export default class Command<T = void> implements Action<string, AsyncIterable<[T, number]>> {
-  static readonly defaultParallelism = os.cpus.length;
+  static readonly defaultParallelism = os.cpus().length;
 
   protected static sizeOf(value: string): number {
     return Buffer.from(value).length;
@@ -118,6 +118,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
   }
 
   async * execute(args?: Iterable<string> | AsyncIterable<string>): AsyncIterable<[T, number]> {
+    debug('parallelism: %d', this.parallelism);
     function drain<T>(array: T[], threshold: number): T[] {
       const values = array.length < threshold ? [] : array.splice(0);
       debug('drain %d values.', values.length);
@@ -129,7 +130,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
     const promiseToExecuteCommand = (args: string[], threshold = 0): Promise<[T, number]>[] => {
       promises.push(this._execute(args));
       numberOfPromises += 1;
-      debug('%d: Promise to execute `%s` (arguments length: %d)', promises.length, this.command, args.length);
+      debug('%d: Promise to execute `%s` (arguments length: %d)', numberOfPromises, this.command, args.length);
       return drain(promises, threshold);
     }
 
