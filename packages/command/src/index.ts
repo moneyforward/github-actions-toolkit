@@ -77,7 +77,8 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
 
   protected readonly initArgumentsSize: number;
   protected readonly evaluateExitStatus: (exitStatus: number) => boolean;
-  parallelism: number = Command.defaultParallelism;
+  protected readonly parallelism = Command.defaultParallelism;
+  protected readonly argumentCountThreshold = Number.POSITIVE_INFINITY;
 
   constructor(
     protected readonly command: string,
@@ -143,15 +144,18 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
       const maxArgsSize = Command.calculateMaxArgumentsSize();
       const buffer: string[] = [];
       let size = this.initArgumentsSize;
+      let count = 0;
       for await (const arg of args) {
         const length = Command.sizeOf(arg);
-        if ((length + size) > maxArgsSize) {
+        if ((length + size) > maxArgsSize || (count + 1) > this.argumentCountThreshold) {
           yield* promiseToExecuteCommand(buffer, this.parallelism);
           buffer.length = 0;
           size = this.initArgumentsSize;
+          count = 0;
         }
         buffer.push(arg);
         size += length;
+        count += 1;
       }
       if (buffer.length) yield* promiseToExecuteCommand(buffer);
     } finally {
