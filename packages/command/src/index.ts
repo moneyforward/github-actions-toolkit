@@ -118,13 +118,19 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
   }
 
   async * execute(args?: Iterable<string> | AsyncIterable<string>): AsyncIterable<[T, number]> {
+    function drain<T>(array: T[], threshold: number): T[] {
+      const values = array.length < threshold ? [] : array.splice(0);
+      debug('drain %d values.', values.length);
+      return values;
+    }
+
     let numberOfPromises = 0;
     const promises: Promise<[T, number]>[] = [];
     const promiseToExecuteCommand = (args: string[], threshold = 0): Promise<[T, number]>[] => {
       promises.push(this._execute(args));
-      numberOfPromises =+ 1;
+      numberOfPromises += 1;
       debug('%d: Promise to execute `%s` (arguments length: %d)', promises.length, this.command, args.length);
-      return promises.length < threshold ? [] : promises.splice(0);      
+      return drain(promises, threshold);
     }
 
     try {
