@@ -8,31 +8,38 @@ import { Reporter, Resolver, Statistic, ReportWriter, Problem, ChangeRanges } fr
 const debug = util.debuglog('@moneyforward/sca-action-core/reporters/annotation-reporter');
 
 export default class AnnotationReporter implements Reporter {
-  private static readonly problemMatcher = {
-    "owner": "analyze-result.tsv",
-    "pattern": [
-      {
-        "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+), column (\d+) of ([^\t]+)\t([^\t]+)$/.toString(),
-        "file": 5,
-        "line": 3,
-        "column": 4,
-        "severity": 1,
-        "message": 6,
-        "code": 2
-      },
-      {
-        "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+) of ([^\t]+)\t([^\t]+)$/.toString(),
-        "file": 4,
-        "line": 3,
-        "severity": 1,
-        "message": 5,
-        "code": 2
-      }
-    ]
-  };
+  private static readonly problemMatcher = [
+    {
+      "owner": "@moneyforward/sca-action-core/reporters/annotation-reporter#0",
+      "pattern": [
+        {
+          "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+), column (\d+) of ([^\t]+)\t([^\t]+)$/.toString(),
+          "file": 5,
+          "line": 3,
+          "column": 4,
+          "severity": 1,
+          "message": 6,
+          "code": 2
+        }
+      ]
+    },
+    {
+      "owner": "@moneyforward/sca-action-core/reporters/annotation-reporter#1",
+      "pattern": [
+        {
+          "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+) of ([^\t]+)\t([^\t]+)$/.toString(),
+          "file": 4,
+          "line": 3,
+          "severity": 1,
+          "message": 5,
+          "code": 2
+        }
+      ]
+    },
+  ];
 
   private static readonly problemMatchers = JSON.stringify({
-    "problemMatcher": [AnnotationReporter.problemMatcher]
+    "problemMatcher": AnnotationReporter.problemMatcher
   });
 
   private numberOfWriters = 0;
@@ -47,7 +54,8 @@ export default class AnnotationReporter implements Reporter {
   }
 
   async finalize(): Promise<void> {
-    console.log('::remove-matcher owner=%s::', AnnotationReporter.problemMatcher.owner);
+    for (const owner of AnnotationReporter.problemMatcher.map(({ owner }) => owner))
+      console.log('::remove-matcher owner=%s::', owner);
   }
 
   createReportWriter(resolve: (value: Statistic) => void, spawnPrguments: SpawnPrguments): ReportWriter {
