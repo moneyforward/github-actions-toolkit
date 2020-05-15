@@ -1,4 +1,5 @@
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
+import os from 'os';
 import stream from 'stream';
 import util from 'util';
 import { arrayify, reduce, stringify, Reducer } from '@moneyforward/stream-util';
@@ -25,6 +26,8 @@ export type CommandConstructor = {
 export type SpawnPrguments = Parameters<typeof spawn>;
 
 export default class Command<T = void> implements Action<string, AsyncIterable<[T, number]>> {
+  static readonly defaultParallelism = os.cpus.length;
+
   protected static sizeOf(value: string): number {
     return Buffer.from(value).length;
   }
@@ -74,6 +77,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
 
   protected readonly initArgumentsSize: number;
   protected readonly evaluateExitStatus: (exitStatus: number) => boolean;
+  parallelism: number = Command.defaultParallelism;
 
   constructor(
     protected readonly command: string,
@@ -115,22 +119,27 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
 
   async * execute(args?: Iterable<string> | AsyncIterable<string>): AsyncIterable<[T, number]> {
     let numberOfPromises = 0;
-    const command = this.command;
-    const execute = this._execute.bind(this);
-    const promiseToExecuteCommand = async function* (args: string[]): AsyncIterable<[T, number]> {
-      debug('%d: Promise to execute `%s` (arguments length: %d)', numberOfPromises += 1, command, args.length);
-      yield execute(args);
+    const promises: Promise<[T, number]>[] = [];
+    const promiseToExecuteCommand = (args: string[], threshold = 0): Promise<[T, number]>[] => {
+      promises.push(this._execute(args));
+      numberOfPromises =+ 1;
+      debug('%d: Promise to execute `%s` (arguments length: %d)', promises.length, this.command, args.length);
+      return promises.length < threshold ? [] : promises.splice(0);      
     }
-    if (args === undefined) {
-      yield* promiseToExecuteCommand([]);
-    } else {
+
+    try {
+      if (args === undefined) {
+        yield* promiseToExecuteCommand([]);
+        return;
+      }
+
       const maxArgsSize = Command.calculateMaxArgumentsSize();
       const buffer: string[] = [];
       let size = this.initArgumentsSize;
       for await (const arg of args) {
         const length = Command.sizeOf(arg);
         if ((length + size) > maxArgsSize) {
-          yield* promiseToExecuteCommand(buffer);
+          yield* promiseToExecuteCommand(buffer, this.parallelism);
           buffer.length = 0;
           size = this.initArgumentsSize;
         }
@@ -138,7 +147,8 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
         size += length;
       }
       if (buffer.length) yield* promiseToExecuteCommand(buffer);
+    } finally {
+      debug('%s %d promise(s)', this.command, numberOfPromises);
     }
-    debug('%s %d promise(s)', this.command, numberOfPromises);
   }
 }
