@@ -12,12 +12,20 @@ export default class AnnotationReporter implements Reporter {
     "owner": "analyze-result.tsv",
     "pattern": [
       {
-        "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+)(?:|, column (\d+)) of ([^\t]+)\t([^\t]+)$/.toString(),
+        "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+), column (\d+) of ([^\t]+)\t([^\t]+)$/.toString(),
         "file": 5,
         "line": 3,
         "column": 4,
         "severity": 1,
         "message": 6,
+        "code": 2
+      },
+      {
+        "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+) of ([^\t]+)\t([^\t]+)$/.toString(),
+        "file": 4,
+        "line": 3,
+        "severity": 1,
+        "message": 5,
         "code": 2
       }
     ]
