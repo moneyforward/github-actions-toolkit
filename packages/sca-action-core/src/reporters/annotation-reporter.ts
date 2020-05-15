@@ -12,7 +12,7 @@ export default class AnnotationReporter implements Reporter {
     "owner": "analyze-result.tsv",
     "pattern": [
       {
-        "regexp": /^\[([^\t]+)\] Detected `([^\t]+)` problem at line (\d+|NaN), column (\d+|NaN) of ([^\t]+)\t([^\t]+)$/.toString(),
+        "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+)(?:|, column (\d+)) of ([^\t]+)\t([^\t]+)$/.toString(),
         "file": 5,
         "line": 3,
         "column": 4,
@@ -53,20 +53,21 @@ export default class AnnotationReporter implements Reporter {
           objectMode: true,
           write: (problem: Problem, _encoding, done): void => {
             this.numberOfProblems += 1;
-            const name = reporter.resolver.resolve(problem.file);
-            const position = Number(problem.line);
-            const ranges = reporter.changeRanges.get(name) || [];
-            debug('%s:%d = %s', name, position, ranges);
-            for (const [start, end] of ranges) if (position >= start && position <= end) {
+            const file = reporter.resolver.resolve(problem.file);
+            const line = Number(problem.line);
+            const ranges = reporter.changeRanges.get(file) || [];
+            debug('%s:%d = %s', file, line, ranges);
+            for (const [start, end] of ranges) if (line >= start && line <= end) {
+              const column = Number(problem.column);
               const message = [
                 problem.severity,
-                problem.code,
-                position,
-                Number(problem.column),
-                name,
+                problem.code === undefined ? '' : ` \`${problem.code}\``,
+                line,
+                Number.isNaN(column) ? '' : `, column ${column}`,
+                file,
                 problem.message,
               ].map(e => typeof e === 'number' ? e : (e === undefined ? '' : String(e)).replace(/\s+/g, ' '));
-              console.log(`[%s] Detected \`%s\` problem at line %d, column %d of %s\t%s`, ...message);
+              console.log('[%s] Detected%s problem at line %d%s of %s\t%s', ...message);
               this.numberOfDetections += 1;
               break;
             }
