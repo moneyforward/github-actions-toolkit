@@ -1,6 +1,6 @@
 {
   "name": "@moneyforward/command",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Use the command pattern to encapsulate the spawning of child process",
   "main": "dist/index.js",
   "scripts": {
