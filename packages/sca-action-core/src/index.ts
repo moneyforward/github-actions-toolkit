@@ -5,9 +5,10 @@ import path from 'path';
 import stream from 'stream';
 import util from 'util';
 import Command, { CommandConstructor, SpawnPrguments } from '@moneyforward/command';
+import * as streaming from '@moneyforward/stream-util';
 import { FinderConstructor, PassThroughFinder } from './finder';
 import { ChangeRanges, ReporterConstructor, ReporterRepository, Resolver, Statistic } from './reporter';
-import Git from './tool/git';
+import Git, { Remote } from './tool/git';
 
 const pipeline = util.promisify(stream.pipeline);
 const debug = util.debuglog('@moneyforward/sca-action-core');
@@ -59,13 +60,9 @@ export default abstract class StaticCodeAnalyzer {
     assert(process.env.GITHUB_SHA, 'Environment variable `GITHUB_SHA` is undefined.');
 
     const measureChangeRanges = (async (): Promise<Map<string, [number, number][]>> => {
-      let remoteName: string | undefined;
-      for await (const remote of await this.git.listRemote()) if (/\bgithub\.com\b/.test(remote.url) && remote.mirror === 'fetch') {
-        debug('%o', remote);
-        remoteName = remote.name;
-        break;
-      }
-      return this.git.measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_SHA || '', remoteName);
+      const predicate = (remote: Remote): boolean => /\bgithub\.com\b/.test(remote.url) && remote.mirror === 'fetch';
+      const remote = await streaming.first(streaming.filter(this.git.listRemote(), predicate));
+      return this.git.measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_SHA || '', remote?.name);
     })();
     const createResolver = (async (): Promise<Resolver> => {
       const cdup = await this.git.showCurrentDirectoryUp();
@@ -93,8 +90,8 @@ export default abstract class StaticCodeAnalyzer {
 
       await reporter.initialize();
       try {
-        const results = await command.execute(new this.Finder().find(patterns));
-        const statistic = results.map(([result,]) => result).reduce(Statistic.add);
+        const results = await streaming.arrayify(command.execute(new this.Finder().find(patterns)));
+        const statistic = results.map(([statistic]) => statistic).reduce(Statistic.add, new Statistic());
         debug('%o', statistic);
         console.log('Detected %d issue(s).', statistic.numberOfDetections);
         return statistic.numberOfDetections > 0 ? 1 : 0;

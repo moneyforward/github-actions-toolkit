@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@actions/glob": "^0.1.0",
-    "@moneyforward/command": "0.0.0",
-    "@moneyforward/stream-util": "0.0.0"
+    "@moneyforward/command": "0.0.6",
+    "@moneyforward/stream-util": "0.0.2"
   }
 }

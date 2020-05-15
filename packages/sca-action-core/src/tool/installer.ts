@@ -3,12 +3,12 @@ import os from 'os';
 import path from 'path';
 import stream from 'stream';
 import util from 'util';
-import { Lines } from '@moneyforward/stream-util';
+import { reduce, transform } from '@moneyforward/stream-util';
 import Command, { Action } from '@moneyforward/command';
 
 const debug = util.debuglog('@moneyforward/sca-action-core/tool/installer');
 
-export type Installer = Action<string, Map<string, string>>;
+export type Installer = Action<string, Promise<Map<string, string>>>;
 
 export class RubyGemsInstaller implements Installer {
   private static async addPath(dirctory: Promise<string>, env: NodeJS.ProcessEnv = global.process.env): Promise<string> {
@@ -31,7 +31,7 @@ export class RubyGemsInstaller implements Installer {
       const gems = new Map<string, string>();
       const readable = fs.existsSync('Gemfile.lock') ? fs.createReadStream('Gemfile.lock') : stream.Readable.from([]);
       const filter = /^ {4}(.+) \((.+)\)$/;
-      for await (const line of readable.pipe(new Lines())) {
+      for await (const line of readable.pipe(new transform.Lines())) {
         const [matches, key, value] = (filter.exec(line) || []);
         if (matches) gems.set(key, value);
       }
@@ -39,7 +39,7 @@ export class RubyGemsInstaller implements Installer {
     })();
   }
 
-  private async * resolve(gemNames: Iterable<string> | AsyncIterable<string>): AsyncGenerator<string, void, unknown> {
+  private async * resolve(gemNames: Iterable<string> | AsyncIterable<string>): AsyncIterable<string> {
     const format = ([name, version]: [string, string | undefined]): string => `${name}${(version && ':' + version) || ''}`;
     const bundledGems = await this.bundledGems;
     for await (const gemName of gemNames)
@@ -59,13 +59,12 @@ export class RubyGemsInstaller implements Installer {
       (async (): Promise<Map<string, string>> => {
         const initArgs = ['i', '-N', '-i', await this.dirctory];
         const command = new Command('gem', initArgs, undefined, async (_child, _command, args) => args.slice(initArgs.length));
-        return command.execute(this.resolve(gemNames))
-          .then(results => new Map<string, string>(
-            results
-              .map(([gems,]) => gems)
-              .reduce((previous, current) => previous.concat(current))
-              .map(gem => gem.split(':', 2) as [string, string])
-          ));
+        return reduce(command.execute(this.resolve(gemNames)), (gems, [result]) => {
+          result
+            .map(gem => gem.split(':', 2))
+            .forEach(([name, version]) => gems.set(name, version));
+          return gems;
+        }, new Map<string, string>());
       })(),
       this.path
     ]).then(([gems,]) => gems);
