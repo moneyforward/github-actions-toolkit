@@ -13,7 +13,7 @@ export default class AnnotationReporter implements Reporter {
       "owner": "@moneyforward/sca-action-core/reporters/annotation-reporter#0",
       "pattern": [
         {
-          "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+)(?:|, column (\d+)) of ([^\t]+)\t([^\t]+)$/.toString(),
+          "regexp": /^\[([^\t]+)\] Detected(?:| `([^\t]+)`) problem at line (\d+|NaN)(?:|, column (\d+|NaN)) of ([^\t]+)\t([^\t]+)$/.source,
           "file": 5,
           "line": 3,
           "column": 4,
@@ -36,6 +36,7 @@ export default class AnnotationReporter implements Reporter {
 
   async initialize(): Promise<void> {
     const matcher = path.join(await fs.promises.mkdtemp(path.join(os.tmpdir(), `-`)), 'problem-matcher.json');
+    debug('%s', AnnotationReporter.problemMatchers);
     await fs.promises.writeFile(matcher, AnnotationReporter.problemMatchers);
     console.log(`::add-matcher::${matcher}`);
   }
