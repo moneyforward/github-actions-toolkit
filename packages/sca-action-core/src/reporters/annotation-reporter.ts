@@ -65,7 +65,7 @@ export default class AnnotationReporter implements Reporter {
               const column = Number(problem.column);
               const message = [
                 problem.severity,
-                problem.code === undefined ? 'the' : ` \`${problem.code}\``,
+                problem.code === undefined ? '' : ` \`${problem.code}\``,
                 line,
                 Number.isNaN(column) ? '' : `, column ${column}`,
                 file,
