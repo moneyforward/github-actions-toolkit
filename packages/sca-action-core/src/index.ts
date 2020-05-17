@@ -19,7 +19,18 @@ export * as finder from './finder';
 export * as installer from './tool/installer';
 export * as reporter from './reporter';
 
-export default abstract class StaticCodeAnalyzer {
+export interface Analyzer {
+  reporterTypeNotation?: string;
+  analyze(patterns: string): Promise<number>;
+}
+
+export type AnalyzerConstructorParameter = any;
+
+export type AnalyzerConstructor = {
+  new(...args: AnalyzerConstructorParameter[]): Analyzer;
+};
+
+export default abstract class StaticCodeAnalyzer implements Analyzer {
   protected static readonly reporterRepository = new ReporterRepository();
 
   protected readonly git = new Git();
