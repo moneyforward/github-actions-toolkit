@@ -110,7 +110,6 @@ dist
 /.tool-versions
 /gulpfile.js
 /tsconfig.json
-/src/
 /test/
 
 /reports/
