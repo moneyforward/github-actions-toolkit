@@ -28,9 +28,9 @@
   "devDependencies": {
     "@types/chai": "^4.2.11",
     "@types/mocha": "^7.0.2",
-    "@types/node": "^13.13.2",
-    "@typescript-eslint/eslint-plugin": "^2.29.0",
-    "@typescript-eslint/parser": "^2.29.0",
+    "@types/node": "^13.13.6",
+    "@typescript-eslint/eslint-plugin": "^2.33.0",
+    "@typescript-eslint/parser": "^2.33.0",
     "@zeit/ncc": "^0.22.1",
     "chai": "^4.2.0",
     "del": "^5.1.0",
@@ -39,11 +39,11 @@
     "gulp": "^4.0.2",
     "mocha": "^7.1.2",
     "ts-node": "^8.10.1",
-    "typescript": "^3.8.3"
+    "typescript": "^3.9.2"
   },
   "dependencies": {
     "@actions/glob": "^0.1.0",
-    "@moneyforward/command": "0.0.6",
-    "@moneyforward/stream-util": "0.0.2"
+    "@moneyforward/command": "^0.1.0",
+    "@moneyforward/stream-util": "^0.1.0"
   }
 }
