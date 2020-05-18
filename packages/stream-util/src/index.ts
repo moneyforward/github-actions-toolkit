@@ -2,6 +2,11 @@ import stream from 'stream';
 
 export * as transform from './transform';
 
+export async function* concat<T>(...args: AsyncIterable<T>[]): AsyncIterable<T> {
+  for (const asyncIterable of args)
+    yield* asyncIterable;
+}
+
 export type Mapper<T, U = T> = (value: T, index: number) => U | PromiseLike<U>;
 export async function* map<T, U = T>(asyncIterable: AsyncIterable<T>, mapper: Mapper<T, U>): AsyncIterable<U> {
   let index = -1;

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import stream from 'stream';
-import { arrayify, stringify, reduce, map, of } from '../src/index';
+import { arrayify, stringify, reduce, map, of, concat } from '../src/index';
 
 describe('stringify', () => {
   it('should return a string', async () => {
@@ -41,5 +41,14 @@ describe('reduce', () => {
     const expected = numbers.reduce(sum);
     const actual = await reduce(of(...numbers), sum, 0);
     expect(actual).to.equal(expected);
+  });
+});
+
+describe('concat', () => {
+  it('should return new iterable', async () => {
+    const numbers = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    const expected = numbers.reduce((previous, current) => previous.concat(current));
+    const actual = await arrayify(concat(...numbers.map(array => of(...array))));
+    expect(actual).to.deep.equal(expected);
   });
 });
