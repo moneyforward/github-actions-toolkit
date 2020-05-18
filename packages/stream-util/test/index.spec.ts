@@ -1,9 +1,6 @@
 import { expect } from 'chai';
 import stream from 'stream';
-import util from 'util';
-import { arrayify, stringify, reduce, map, of, parallel } from '../src/index';
-
-const debug = util.debuglog('@moneyforward/stream-util');
+import { arrayify, stringify, reduce, map, of } from '../src/index';
 
 describe('stringify', () => {
   it('should return a string', async () => {
@@ -44,24 +41,5 @@ describe('reduce', () => {
     const expected = numbers.reduce(sum);
     const actual = await reduce(of(...numbers), sum, 0);
     expect(actual).to.equal(expected);
-  });
-});
-
-describe('parallel', () => {
-  it('should return the same result', async () => {
-    const expected = [60, 20, 40, 30];
-    const promisify = (value: number, index: number): Promise<number> =>
-      new Promise(resolve => {
-        debug('%s #%d starting %s...', new Date(), index, value);
-        setTimeout((v, i) => {
-          debug('%s #%d done %s', new Date(), i, v);
-          resolve(v);
-        }, value, value, index);
-      });
-    const iterable = (async function * (numbers): AsyncIterable<number> {
-      yield* numbers.map(promisify);
-    })(expected);
-    const actual = await arrayify(parallel(iterable, expected.length / 2));
-    expect(actual).to.deep.equal(expected);
   });
 });

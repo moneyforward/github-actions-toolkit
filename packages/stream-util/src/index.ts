@@ -1,25 +1,6 @@
 import stream from 'stream';
-import util from 'util';
 
 export * as transform from './transform';
-
-const debug = util.debuglog('@moneyforward/stream-util');
-
-export async function* parallel<T>(asyncIterable: AsyncIterable<T>, parallelism: number): AsyncIterable<T> {
-  const iterator = asyncIterable[Symbol.asyncIterator]();
-  const threshold = Math.max(1, parallelism);
-  debug('threshold: %d', threshold);
-  function _parallel<T>(iterator: AsyncIterator<T>): Promise<IteratorResult<T>[]> {
-    const promises: (IteratorResult<T> | PromiseLike<IteratorResult<T>>)[] = [];
-    for (let count = 0; count < threshold; count += 1) promises.push(iterator.next());
-    return Promise.all(promises);
-  }
-  while (true)
-    for (const result of await _parallel(iterator)) {
-      if (result.done) return;
-      yield result.value;
-    }
-}
 
 export type Mapper<T, U = T> = (value: T, index: number) => U | PromiseLike<U>;
 export async function* map<T, U = T>(asyncIterable: AsyncIterable<T>, mapper: Mapper<T, U>): AsyncIterable<U> {
