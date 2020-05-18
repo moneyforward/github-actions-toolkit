@@ -43,6 +43,6 @@
     "typescript": "^3.9.2"
   },
   "dependencies": {
-    "@moneyforward/stream-util": "0.0.2"
+    "@moneyforward/stream-util": "^0.1.0"
   }
 }
