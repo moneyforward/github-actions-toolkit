@@ -17,7 +17,8 @@
   },
   "keywords": [
     "stream",
-    "json"
+    "json",
+    "asyncIterator"
   ],
   "author": "Money Forward, Inc.",
   "license": "MIT",
