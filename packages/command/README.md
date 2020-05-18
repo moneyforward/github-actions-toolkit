@@ -1,3 +1,3 @@
-# stream-util
+# command
 
-Functions useful when using with streams
+Use the command pattern to encapsulate the spawning of child process
