@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@actions/glob": "^0.1.0",
+    "@moneyforward/code-review-action": "^0.2.0",
     "@moneyforward/command": "^0.1.0",
     "@moneyforward/stream-util": "^0.1.0"
   }

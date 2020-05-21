@@ -1,40 +1,24 @@
 import { strict as assert } from 'assert';
 import { SpawnOptions, ChildProcess } from 'child_process';
-import os from 'os';
 import path from 'path';
 import stream from 'stream';
 import util from 'util';
+import { analyzer, reporter } from '@moneyforward/code-review-action';
 import Command, { CommandConstructor, SpawnPrguments } from '@moneyforward/command';
 import * as streaming from '@moneyforward/stream-util';
 import { FinderConstructor, PassThroughFinder } from './finder';
-import { ChangeRanges, ReporterConstructor, ReporterRepository, Resolver, Statistic } from './reporter';
 import Git, { Remote } from './tool/git';
+
+const Statistic = reporter.Statistic;
 
 const pipeline = util.promisify(stream.pipeline);
 const debug = util.debuglog('@moneyforward/sca-action-core');
 
-debug('Node.js %s (arch: %s; platform: %s; cups: %d)', process.version, process.arch, process.platform, os.cpus().length);
-
 export * as finder from './finder';
 export * as installer from './tool/installer';
-export * as reporter from './reporter';
 
-export interface Analyzer {
-  reporterTypeNotation?: string;
-  analyze(patterns: string): Promise<number>;
-}
-
-export type AnalyzerConstructorParameter = any;
-
-export type AnalyzerConstructor = {
-  new(...args: AnalyzerConstructorParameter[]): Analyzer;
-};
-
-export default abstract class StaticCodeAnalyzer implements Analyzer {
-  protected static readonly reporterRepository = new ReporterRepository();
-
+export default abstract class StaticCodeAnalyzer implements analyzer.Analyzer {
   protected readonly git = new Git();
-  reporterTypeNotation: string | undefined;
 
   protected constructor(
     protected command: string,
@@ -54,9 +38,7 @@ export default abstract class StaticCodeAnalyzer implements Analyzer {
     return Command;
   }
 
-  protected get Reporter(): ReporterConstructor {
-    return StaticCodeAnalyzer.reporterRepository.get(this.reporterTypeNotation);
-  }
+  abstract get Reporter(): reporter.ReporterConstructor;
 
   protected async pipeline(stdout: stream.Readable | null, writable: stream.Writable, ...[command, args, options]: SpawnPrguments): Promise<[stream.Readable, ...stream.Writable[]]> {
     debug('pipelining `%s` with %d argument(s)... (options: %o)', command, args.length, options);
@@ -70,12 +52,12 @@ export default abstract class StaticCodeAnalyzer implements Analyzer {
     assert(process.env.GITHUB_BASE_REF, 'Environment variable `GITHUB_BASE_REF` is undefined.');
     assert(process.env.GITHUB_SHA, 'Environment variable `GITHUB_SHA` is undefined.');
 
-    const measureChangeRanges = (async (): Promise<Map<string, [number, number][]>> => {
+    const measureChangeRanges = (async (): Promise<reporter.ChangeRanges> => {
       const predicate = (remote: Remote): boolean => /\bgithub\.com\b/.test(remote.url) && remote.mirror === 'fetch';
       const remote = await streaming.first(streaming.filter(this.git.listRemote(), predicate));
       return this.git.measureChangeRanges(process.env.GITHUB_BASE_REF || '', process.env.GITHUB_SHA || '', remote?.name);
     })();
-    const createResolver = (async (): Promise<Resolver> => {
+    const createResolver = (async (): Promise<reporter.Resolver> => {
       const cdup = await this.git.showCurrentDirectoryUp();
       const dirname = path.relative(path.resolve(process.cwd(), cdup), process.cwd());
       debug('dirname: %s', dirname);
@@ -83,7 +65,7 @@ export default abstract class StaticCodeAnalyzer implements Analyzer {
         resolve: (file): string => path.join(dirname, path.relative(process.cwd(), file))
       }
     })();
-    const [changeRanges, resolver] = await Promise.all<ChangeRanges, Resolver, unknown>([
+    const [changeRanges, resolver] = await Promise.all<reporter.ChangeRanges, reporter.Resolver, unknown>([
       measureChangeRanges,
       createResolver,
       this.prepare()
@@ -91,13 +73,13 @@ export default abstract class StaticCodeAnalyzer implements Analyzer {
     console.log(`::group::Analyze code statically using ${this.title || this.command}`);
     try {
       const reporter = new this.Reporter(changeRanges, resolver, [this.command, this.args, this.options]);
-      const promisify = async (child: ChildProcess, ...spawnArguments: SpawnPrguments): Promise<Statistic> => {
+      const promisify = async (child: ChildProcess, ...spawnArguments: SpawnPrguments): Promise<reporter.Statistic> => {
         return new Promise((resolve, reject) => {
           const writable = reporter.createReportWriter(resolve, spawnArguments);
           this.pipeline(child.stdout, writable, ...spawnArguments).then(pipeline).catch(reject);
         });
       };
-      const command = new this.Command<Statistic>(this.command, this.args, this.options, promisify, this.exitStatusThreshold);
+      const command = new this.Command<reporter.Statistic>(this.command, this.args, this.options, promisify, this.exitStatusThreshold);
 
       await reporter.initialize();
       try {
