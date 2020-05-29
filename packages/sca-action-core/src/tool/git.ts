@@ -1,3 +1,4 @@
+import { spawn } from 'child_process';
 import stream from 'stream';
 import util from 'util';
 import Command from '@moneyforward/command';
@@ -42,11 +43,13 @@ export default class Git {
     const args = ['--no-pager', 'diff', '--no-prefix', '--no-color', '-U0', '--diff-filter=b'];
     const commits = other === undefined ? [commit] : notation === 'none' ? [commit, other] : [`${commit}${notation}${other}`];
     debug('%s', commits.join(' '));
-    const results = new Command('git', args, undefined, async child => {
-      child.stdout && child.stdout.unpipe(process.stdout);
-      return child.stdout ? child.stdout.pipe(new transform.Lines()) : stream.Readable.from([]);
-    }).execute(commits);
-    for await (const [result] of results) yield* result;
+
+    const child = spawn('git', args.concat(commits));
+    const promise = new Promise((resolve, reject) => {
+      child.once('close', exitStatus => (exitStatus ? reject : resolve)(exitStatus));
+    });
+    for await (const line of child.stdout.pipe(new transform.Lines())) yield line;
+    return await promise;
   }
 
   async measureChangeRanges(baseRef: string, headRef: string, repository?: string): Promise<Map<string, [number, number][]>> {
