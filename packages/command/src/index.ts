@@ -17,15 +17,15 @@ export type CommandConstructor = {
     command: string,
     args?: readonly string[],
     options?: SpawnOptions,
-    promisify?: (child: ChildProcess, command: string, args: readonly string[], options: SpawnOptions) => Promise<T>,
+    iterate?: (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T>,
     exitStatusThreshold?: number | ((exitStatus: number) => boolean),
     argumentsSizeMargin?: number
-  ): Action<string, AsyncIterable<[T, number]>>;
+  ): Action<string, AsyncIterable<T>>;
 };
 
 export type SpawnPrguments = Parameters<typeof spawn>;
 
-export default class Command<T = void> implements Action<string, AsyncIterable<[T, number]>> {
+export default class Command<T = void> implements Action<string, AsyncIterable<T>> {
   static readonly defaultParallelism = os.cpus().length;
 
   protected static sizeOf(value: string): number {
@@ -53,22 +53,22 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
     args: readonly string[] = [],
     options: SpawnOptions = {},
     exitStatusThreshold = 1,
-    promisify?: (child: ChildProcess) => Promise<T>,
+    iterate: (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T> = (): never[] => [],
     evaluateExitStatus = (exitStatus: number): boolean => exitStatus < exitStatusThreshold,
-    [reducer, initValue]: [Reducer<[T, number], U>, U | undefined] = [(previous: U): U => previous, undefined]
+    [reducer, initValue]: [Reducer<T, U>, U | undefined] = [(previous: U): U => previous, undefined]
   ): Promise<U> {
-    const results = new Command<T>(command, args, options, promisify, evaluateExitStatus).execute();
+    const results = new Command<T>(command, args, options, iterate, evaluateExitStatus).execute();
     return reduce(results, reducer, initValue);
   }
 
   static async substitute(command: string, args: readonly string[] = [], options?: SpawnOptions, stdin?: StdioOption): Promise<string> {
-    const results = new Command(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }), async child => {
-      if (child.stdout === null) return '';
+    const results = new Command(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }), async function * (child) {
+      if (child.stdout === null) return;
       child.stdout.unpipe(process.stdout);
-      return stringify(child.stdout);
+      yield stringify(child.stdout);
     }).execute();
     return arrayify(results)
-      .then(results => results.map(([result]) => result).join().replace(/((\r\n)+|\n+)$/, ''))
+      .then(results => results.join().replace(/((\r\n)+|\n+)$/, ''))
       .catch(error => {
         debug('%s', error);
         return '';
@@ -84,7 +84,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
     protected readonly command: string,
     protected readonly args: readonly string[] = [],
     protected readonly options: SpawnOptions = {},
-    protected readonly promisify?: (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Promise<T>,
+    protected readonly iterate: (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T> = (): never[] => [],
     exitStatusThreshold: number | ((exitStatus: number) => boolean) = 1,
     argumentsSizeMargin = 0
   ) {
@@ -96,48 +96,40 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
     return this.args.concat(args);
   }
 
-  private async _execute(parameters: string[]): Promise<[T, number]> {
+  private async * spawn(...parameters: string[]): AsyncGenerator<T, number, undefined> {
     const args = await this.configureArguments(parameters);
-    return new Promise((resolve, reject) => {
-      let exitStatus: number | null | undefined;
-      const spawnArgs: SpawnPrguments = [this.command, args, this.options];
-      const child = spawn(...spawnArgs)
+    const spawnArgs: SpawnPrguments = [this.command, args, this.options];
+    const child = spawn(...spawnArgs);
+    child.stdout && child.stdout.pipe(process.stdout);
+    child.stderr && child.stderr.pipe(process.stderr);
+    const promise = new Promise<number>((resolve, reject) => {
+      child
         .once('error', reject)
-        .once('exit', code => exitStatus = code)
-        .once('close', exitStatus => debug('`%s` command closed. (%d)', this.command, exitStatus));
-      child.stdout && child.stdout.pipe(process.stdout);
-      child.stderr && child.stderr.pipe(process.stderr);
-      const promise: Promise<T | void> = this.promisify ? this.promisify(child, ...spawnArgs) : Promise.resolve();
-      promise.catch(reject);
-      const exitListener = (exitStatus: number | null): void => {
-        if (exitStatus === null || !this.evaluateExitStatus(exitStatus)) return reject(exitStatus);
-        promise.then(result => resolve([(result as T), exitStatus]));
-      }
-      if (exitStatus !== undefined) exitListener(exitStatus);
-      child.once('exit', exitListener);
+        .once('close', exitStatus => (this.evaluateExitStatus(exitStatus) ? resolve : reject)(exitStatus));
     });
+    yield* this.iterate(child, ...spawnArgs);
+    return await promise;
   }
 
-  async * execute(args?: Iterable<string> | AsyncIterable<string>): AsyncIterable<[T, number]> {
+  async * execute(args?: Iterable<string> | AsyncIterable<string>): AsyncIterable<T> {
     debug('parallelism: %d', this.parallelism);
-    function drain<T>(array: T[], threshold: number): T[] {
-      const values = array.length < threshold ? [] : array.splice(0);
+    const queue: AsyncIterable<T>[] = [];
+    async function * drain(queue: AsyncIterable<T>[], threshold: number): AsyncIterable<T> {
+      const values = queue.length < threshold ? [] : queue.splice(0);
       debug('drain %d values.', values.length);
-      return values;
+      for (const value of values) yield* value;
     }
 
-    let numberOfPromises = 0;
-    const promises: Promise<[T, number]>[] = [];
-    const promiseToExecuteCommand = (args: string[], threshold = 0): Promise<[T, number]>[] => {
-      promises.push(this._execute(args));
-      numberOfPromises += 1;
-      debug('%d: Promise to execute `%s` (arguments length: %d)', numberOfPromises, this.command, args.length);
-      return drain(promises, threshold);
+    let numberOfProcesses = 0;
+    const spawnProcess = (args: string[], threshold = 0): AsyncIterable<T> => {
+      queue.push(this.spawn(...args));
+      debug('%d: spawn `%s` (arguments length: %d)', numberOfProcesses += 1, this.command, args.length);
+      return drain(queue, threshold);
     }
 
     try {
       if (args === undefined) {
-        yield* promiseToExecuteCommand([]);
+        yield* spawnProcess([]);
         return;
       }
 
@@ -148,7 +140,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
       for await (const arg of args) {
         const length = Command.sizeOf(arg);
         if ((length + size) > maxArgsSize || (count + 1) > this.argumentCountThreshold) {
-          yield* promiseToExecuteCommand(buffer, this.parallelism);
+          yield* spawnProcess(buffer, this.parallelism);
           buffer.length = 0;
           size = this.initArgumentsSize;
           count = 0;
@@ -157,9 +149,9 @@ export default class Command<T = void> implements Action<string, AsyncIterable<[
         size += length;
         count += 1;
       }
-      if (buffer.length) yield* promiseToExecuteCommand(buffer);
+      if (buffer.length) yield* spawnProcess(buffer);
     } finally {
-      debug('%s %d promise(s)', this.command, numberOfPromises);
+      debug('%s %d process(es)', this.command, numberOfProcesses);
     }
   }
 }
