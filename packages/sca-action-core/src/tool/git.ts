@@ -1,5 +1,3 @@
-import { spawn } from 'child_process';
-import stream from 'stream';
 import util from 'util';
 import Command from '@moneyforward/command';
 import { map, of, transform, arrayify } from '@moneyforward/stream-util';
@@ -26,17 +24,14 @@ export default class Git {
   }
 
   async * listRemote(): AsyncIterable<Remote> {
-    const results = new Command('git', ['remote', '-v'], undefined, async child => {
-      child.stdout && child.stdout.unpipe(process.stdout);
-      const readable = child.stdout ? child.stdout.pipe(new transform.Lines()) : stream.Readable.from([]);
-      return async function* (remotes: AsyncIterable<string>): AsyncIterable<Remote> {
-        for await (const line of remotes) {
-          const [matches, name, url, mirror] = /^(.+)\t(.+) \((fetch|push)\)$/.exec(line) || [];
-          if (matches) yield { name, url, mirror: mirror === 'fetch' ? 'fetch' : 'push' };
-        }
-      }(readable);
+    yield* new Command('git', ['remote', '-v'], undefined, async function* (child): AsyncIterable<Remote> {
+      if (child.stdout === null) return;
+      child.stdout.unpipe(process.stdout);
+      for await (const line of child.stdout.pipe(new transform.Lines())) {
+        const [matches, name, url, mirror] = /^(.+)\t(.+) \((fetch|push)\)$/.exec(line) || [];
+        if (matches) yield { name, url, mirror: mirror === 'fetch' ? 'fetch' : 'push' };
+      }
     }).execute();
-    for await (const [result] of results) yield* result;
   }
 
   async * diff(commit: string, other?: string, notation: 'none' | '..' | '...' = 'none'): AsyncIterable<string> {
@@ -44,12 +39,11 @@ export default class Git {
     const commits = other === undefined ? [commit] : notation === 'none' ? [commit, other] : [`${commit}${notation}${other}`];
     debug('%s', commits.join(' '));
 
-    const child = spawn('git', args.concat(commits));
-    const promise = new Promise((resolve, reject) => {
-      child.once('close', exitStatus => (exitStatus ? reject : resolve)(exitStatus));
-    });
-    for await (const line of child.stdout.pipe(new transform.Lines())) yield line;
-    return await promise;
+    yield* new Command('git', args, undefined, async function* (child) {
+      if (child.stdout === null) return;
+      child.stdout.unpipe(process.stdout);
+      yield* child.stdout.pipe(new transform.Lines());
+    }).execute(commits);
   }
 
   async measureChangeRanges(baseRef: string, headRef: string, repository?: string): Promise<Map<string, [number, number][]>> {

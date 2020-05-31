@@ -73,18 +73,19 @@ export default abstract class StaticCodeAnalyzer implements analyzer.Analyzer {
     console.log(`::group::Analyze code statically using ${this.title || this.command}`);
     try {
       const reporter = new this.Reporter(changeRanges, resolver, [this.command, this.args, this.options]);
-      const promisify = async (child: ChildProcess, ...spawnArguments: SpawnPrguments): Promise<reporter.Statistic> => {
-        return new Promise((resolve, reject) => {
+      
+      const iterate = async function * (this: StaticCodeAnalyzer, child: ChildProcess, ...spawnArguments: SpawnPrguments): AsyncIterable<reporter.Statistic> {
+        yield await new Promise((resolve, reject) => {
           const writable = reporter.createReportWriter(resolve, spawnArguments);
           this.pipeline(child.stdout, writable, ...spawnArguments).then(pipeline).catch(reject);
         });
-      };
-      const command = new this.Command<reporter.Statistic>(this.command, this.args, this.options, promisify, this.exitStatusThreshold);
+      }.bind(this);
+      const command = new this.Command<reporter.Statistic>(this.command, this.args, this.options, iterate, this.exitStatusThreshold);
 
       await reporter.initialize();
       try {
         const results = await streaming.arrayify(command.execute(new this.Finder().find(patterns)));
-        const statistic = results.map(([statistic]) => statistic).reduce(Statistic.add, new Statistic());
+        const statistic = results.reduce(Statistic.add, new Statistic());
         debug('%o', statistic);
         console.log('Detected %d issue(s).', statistic.numberOfDetections);
         return statistic.numberOfDetections > 0 ? 1 : 0;

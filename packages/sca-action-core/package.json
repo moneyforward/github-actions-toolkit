@@ -28,22 +28,22 @@
   "devDependencies": {
     "@types/chai": "^4.2.11",
     "@types/mocha": "^7.0.2",
-    "@types/node": "^13.13.6",
-    "@typescript-eslint/eslint-plugin": "^2.33.0",
-    "@typescript-eslint/parser": "^2.33.0",
+    "@types/node": "^13.13.9",
+    "@typescript-eslint/eslint-plugin": "^2.34.0",
+    "@typescript-eslint/parser": "^2.34.0",
     "chai": "^4.2.0",
     "del": "^5.1.0",
     "eslint": "^6.8.0",
     "eslint-plugin-security": "^1.4.0",
     "gulp": "^4.0.2",
-    "mocha": "^7.1.2",
-    "ts-node": "^8.10.1",
-    "typescript": "^3.9.2"
+    "mocha": "^7.2.0",
+    "ts-node": "^8.10.2",
+    "typescript": "^3.9.3"
   },
   "dependencies": {
     "@actions/glob": "^0.1.0",
     "@moneyforward/code-review-action": "^0.2.0",
-    "@moneyforward/command": "^0.1.0",
-    "@moneyforward/stream-util": "^0.1.0"
+    "@moneyforward/command": "^0.2.0",
+    "@moneyforward/stream-util": "^0.1.1"
   }
 }
