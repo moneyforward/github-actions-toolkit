@@ -1,5 +1,4 @@
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import stream from 'stream';
 import util from 'util';
@@ -11,22 +10,21 @@ const debug = util.debuglog('@moneyforward/sca-action-core/tool/installer');
 export type Installer = Action<string, Promise<Map<string, string>>>;
 
 export class RubyGemsInstaller implements Installer {
-  private static async addPath(dirctory: Promise<string>, env: NodeJS.ProcessEnv = global.process.env): Promise<string> {
-    const gemdir = await dirctory;
-    const gempath = env['GEM_PATH'] = [gemdir, await Command.substitute('gem', ['env', 'path'])].join(path.delimiter);
-    const paths = env['PATH'] = [path.join(gemdir, 'bin'), env.PATH || ''].join(path.delimiter);
-    debug('GEM_PATH=%s', gempath);
+  private static async addPath(env: NodeJS.ProcessEnv = global.process.env): Promise<string> {
+    const gempath = await Command.substitute('gem', ['env', 'path']);
+    const paths = env['PATH'] = [
+      gempath.split(path.delimiter).map(gemdir => path.join(gemdir, 'bin')),
+      env.PATH || ''
+    ].join(path.delimiter);
     debug('PATH=%s', paths);
     return paths;
   }
 
-  private dirctory: Promise<string>;
   private path: Promise<string>;
   private bundledGems: Promise<Map<string, string>>;
 
   constructor(private isStrict = true, private process: NodeJS.Process = global.process) {
-    this.dirctory = fs.promises.mkdtemp(path.join(os.tmpdir(), 'ruby-'));
-    this.path = RubyGemsInstaller.addPath(this.dirctory, this.process.env);
+    this.path = RubyGemsInstaller.addPath(this.process.env);
     this.bundledGems = (async (): Promise<Map<string, string>> => {
       const gems = new Map<string, string>();
       const readable = fs.existsSync('Gemfile.lock') ? fs.createReadStream('Gemfile.lock') : stream.Readable.from([]);
@@ -57,8 +55,8 @@ export class RubyGemsInstaller implements Installer {
   async execute(gemNames: Iterable<string> | AsyncIterable<string> = []): Promise<Map<string, string>> {
     return Promise.all([
       (async (): Promise<Map<string, string>> => {
-        const initArgs = ['i', '-N', '-i', await this.dirctory];
-        const command = new Command('gem', initArgs, undefined, function * (child, command, args) { yield args.slice(initArgs.length); });
+        const initArgs = ['i', '-N', '--user-install'];
+        const command = new Command('gem', initArgs, undefined, function* (child, command, args) { yield args.slice(initArgs.length); });
         return reduce(command.execute(this.resolve(gemNames)), (gems, result) => {
           result
             .map(gem => gem.split(':', 2))
