@@ -20,6 +20,9 @@ export async function* filter<T>(asyncIterable: AsyncIterable<T>, predicate: Pre
 }
 
 export type Reducer<T, U = T> = (previous: U, current: T, index: number) => U;
+export async function reduce<T>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T>): Promise<T>;
+export async function reduce<T>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T>, initValue: T): Promise<T>;
+export async function reduce<T, U>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T, U>, initValue: U): Promise<U>;
 export async function reduce<T, U = T>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T, U>, ...initValue: [] | [U]): Promise<U> {
   const iterator = asyncIterable[Symbol.asyncIterator]();
   let next;
@@ -44,7 +47,7 @@ export async function first<T>(asyncIterable: AsyncIterable<T>): Promise<T | und
 }
 
 export async function count<T = unknown>(asyncIterable: AsyncIterable<T>): Promise<number> {
-  return reduce(asyncIterable, (previous: number) => previous + 1, 0);
+  return reduce(asyncIterable, previous => previous + 1, 0);
 }
 
 export async function arrayify<T>(asyncIterable: AsyncIterable<T>): Promise<T[]> {
@@ -72,7 +75,7 @@ async function _stringify(readable: stream.Readable): Promise<string> {
   };
 
   if (isObjectStream(readable) || isTextStream(readable)) {
-    return reduce(readable, (previous: string, current) => previous + String(current), '');
+    return reduce(readable, (previous, current) => previous + String(current), '');
   } else {
     const asyncIterable: AsyncIterable<Buffer> = readable;
     return Buffer.concat(await arrayify(asyncIterable)).toString();
@@ -81,7 +84,7 @@ async function _stringify(readable: stream.Readable): Promise<string> {
 
 export async function stringify<T = unknown>(asyncIterable: AsyncIterable<T>): Promise<string> {
   if (asyncIterable instanceof stream.Readable) return _stringify(asyncIterable);
-  return reduce(asyncIterable, (previous: string, current) => previous + String(current), '');
+  return reduce(asyncIterable, (previous, current) => previous + String(current), '');
 }
 
 export async function* of<T>(...values: (T | PromiseLike<T>)[]): AsyncIterable<T> {

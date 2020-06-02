@@ -68,7 +68,7 @@ describe('reduce', () => {
       expect(error).to.be.an.instanceof(TypeError);
     }
 
-    expect(await reduce<number>(of(), previous => previous, undefined)).to.be.undefined;
+    expect(await reduce(of(), previous => previous, undefined)).to.be.undefined;
   });
 });
 
