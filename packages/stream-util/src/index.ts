@@ -21,6 +21,7 @@ export async function* filter<T>(asyncIterable: AsyncIterable<T>, predicate: Pre
 
 export type Reducer<T, U = T> = (previous: U, current: T, index: number) => U;
 export async function reduce<T>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T>): Promise<T>;
+export async function reduce<T, U>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T, U>): Promise<U>;
 export async function reduce<T>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T>, initValue: T): Promise<T>;
 export async function reduce<T, U>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T, U>, initValue: U): Promise<U>;
 export async function reduce<T, U = T>(asyncIterable: AsyncIterable<T>, reducer: Reducer<T, U>, ...initValue: [] | [U]): Promise<U> {
