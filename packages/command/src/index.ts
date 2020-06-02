@@ -12,13 +12,16 @@ export interface Action<T, U> {
   execute(args?: Iterable<T> | AsyncIterable<T>): U;
 }
 
+type Iterate<T> = (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T>;
+type EvaluateExitStatus = number | ((exitStatus: number) => boolean);
+
 export type CommandConstructor = {
   new <T>(
     command: string,
     args?: readonly string[],
     options?: SpawnOptions,
-    iterate?: (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T>,
-    exitStatusThreshold?: number | ((exitStatus: number) => boolean),
+    iterate?: Iterate<T>,
+    exitStatusThreshold?: EvaluateExitStatus,
     argumentsSizeMargin?: number
   ): Action<string, AsyncIterable<T>>;
 };
@@ -48,21 +51,46 @@ export default class Command<T = void> implements Action<string, AsyncIterable<T
       + Math.max(0, argumentsSizeMargin);
   }
 
-  static async execute<T = void, U = [T, number]>(
+  static async execute(command: string, args?: readonly string[], options?: SpawnOptions, evaluateExitStatus?: EvaluateExitStatus): Promise<void>;
+  static async execute<T = void>(command: string, args?: readonly string[], options?: SpawnOptions, evaluateExitStatus?: EvaluateExitStatus, iterate?: Iterate<T>): Promise<T>;
+  static async execute<T = void, U = T>(
     command: string,
-    args: readonly string[] = [],
-    options: SpawnOptions = {},
-    exitStatusThreshold = 1,
-    iterate: (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T> = (): never[] => [],
-    evaluateExitStatus = (exitStatus: number): boolean => exitStatus < exitStatusThreshold,
-    [reducer, initValue]: [Reducer<T, U>, U | undefined] = [(previous: U): U => previous, undefined]
-  ): Promise<U> {
+    args?: readonly string[],
+    options?: SpawnOptions,
+    evaluateExitStatus?: EvaluateExitStatus,
+    iterate?: Iterate<T>,
+    ...reduceArguments: [Reducer<T, U>] | [Reducer<T, U>, U]
+  ): Promise<U>;
+  static async execute<T = void, U = T>(
+    command: string,
+    args?: readonly string[],
+    options?: SpawnOptions,
+    evaluateExitStatus?: EvaluateExitStatus,
+    iterate?: Iterate<T>,
+    ...reduceArguments: [] | [Reducer<T, U>] | [Reducer<T, U>, U]
+  ): Promise<U | void> {
     const results = new Command<T>(command, args, options, iterate, evaluateExitStatus).execute();
-    return reduce(results, reducer, initValue);
+    if (!iterate) return;
+    switch (reduceArguments.length) {
+      case 0:
+        return reduce<T, U>(results, previous => previous);
+
+      case 1:
+        {
+          const [reducer] = reduceArguments;
+          return reduce(results, reducer);
+        }
+
+      default:
+        {
+          const [reducer, initValue] = reduceArguments;
+          return reduce(results, reducer, initValue);
+        }
+    }
   }
 
-  static async substitute(command: string, args: readonly string[] = [], options?: SpawnOptions, stdin?: StdioOption): Promise<string> {
-    const results = new Command(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }), async function * (child) {
+  static async substitute(command: string, args?: readonly string[], options?: SpawnOptions, stdin?: StdioOption): Promise<string> {
+    const results = new Command(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }), async function* (child) {
       if (child.stdout === null) return;
       child.stdout.unpipe(process.stdout);
       yield stringify(child.stdout);
@@ -114,7 +142,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<T
   async * execute(args?: Iterable<string> | AsyncIterable<string>): AsyncIterable<T> {
     debug('parallelism: %d', this.parallelism);
     const queue: AsyncIterable<T>[] = [];
-    async function * drain(queue: AsyncIterable<T>[], threshold: number): AsyncIterable<T> {
+    async function* drain(queue: AsyncIterable<T>[], threshold: number): AsyncIterable<T> {
       const values = queue.length < threshold ? [] : queue.splice(0);
       debug('drain %d values.', values.length);
       for (const value of values) yield* value;
