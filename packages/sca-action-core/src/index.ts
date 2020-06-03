@@ -75,6 +75,7 @@ export default abstract class StaticCodeAnalyzer implements analyzer.Analyzer {
       const reporter = new this.Reporter(changeRanges, resolver, [this.command, this.args, this.options]);
       
       const iterate = async function * (this: StaticCodeAnalyzer, child: ChildProcess, ...spawnArguments: SpawnPrguments): AsyncIterable<reporter.Statistic> {
+        child.stderr?.pipe(process.stderr);
         yield await new Promise((resolve, reject) => {
           const writable = reporter.createReportWriter(resolve, spawnArguments);
           this.pipeline(child.stdout, writable, ...spawnArguments).then(pipeline).catch(reject);

@@ -25,6 +25,7 @@ export default class Git {
 
   async * listRemote(): AsyncIterable<Remote> {
     yield* new Command('git', ['remote', '-v'], undefined, async function* (child): AsyncIterable<Remote> {
+      child.stderr?.pipe(process.stderr);
       if (child.stdout === null) return;
       child.stdout.unpipe(process.stdout);
       for await (const line of child.stdout.pipe(new transform.Lines())) {
@@ -40,6 +41,7 @@ export default class Git {
     debug('%s', commits.join(' '));
 
     yield* new Command('git', args, undefined, async function* (child) {
+      child.stderr?.pipe(process.stderr);
       if (child.stdout === null) return;
       child.stdout.unpipe(process.stdout);
       yield* child.stdout.pipe(new transform.Lines());

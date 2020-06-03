@@ -57,7 +57,11 @@ export class RubyGemsInstaller implements Installer {
     return Promise.all([
       (async (): Promise<Map<string, string>> => {
         const initArgs = ['i', '-N', '--user-install'];
-        const command = new Command('gem', initArgs, undefined, function* (child, command, args) { yield args.slice(initArgs.length); });
+        const command = new Command('gem', initArgs, undefined, function* (child, command, args) {
+          child.stdout?.pipe(process.stdout);
+          child.stderr?.pipe(process.stderr);
+          yield args.slice(initArgs.length);
+        });
         return reduce(command.execute(this.resolve(gemNames)), (gems, result) => {
           result
             .map(gem => gem.split(':', 2))
