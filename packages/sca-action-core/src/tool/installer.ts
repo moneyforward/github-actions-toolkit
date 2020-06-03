@@ -12,10 +12,11 @@ export type Installer = Action<string, Promise<Map<string, string>>>;
 export class RubyGemsInstaller implements Installer {
   private static async addPath(env: NodeJS.ProcessEnv = global.process.env): Promise<string> {
     const gempath = await Command.substitute('gem', ['env', 'path']);
-    const paths = env['PATH'] = [
-      gempath.split(path.delimiter).map(gemdir => path.join(gemdir, 'bin')),
-      env.PATH || ''
-    ].join(path.delimiter);
+    const paths = env['PATH'] = gempath
+      .split(path.delimiter)
+      .map(gemdir => path.join(gemdir, 'bin'))
+      .concat(env.PATH || '')
+      .join(path.delimiter);
     debug('PATH=%s', paths);
     return paths;
   }
