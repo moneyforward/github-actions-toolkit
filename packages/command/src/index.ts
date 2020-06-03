@@ -15,6 +15,12 @@ export interface Action<T, U> {
 type Iterate<T> = (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T>;
 type EvaluateExitStatus = number | ((exitStatus: number) => boolean);
 
+const defaultIterate = (child: ChildProcess): [] => {  
+  child.stdout && child.stdout.pipe(process.stdout);
+  child.stderr && child.stderr.pipe(process.stderr);
+  return [];
+}
+
 export type CommandConstructor = {
   new <T>(
     command: string,
@@ -70,7 +76,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<T
     ...reduceArguments: [] | [Reducer<T, U>] | [Reducer<T, U>, U]
   ): Promise<U | void> {
     const results = new Command<T>(command, args, options, iterate, evaluateExitStatus).execute();
-    if (!iterate) return;
+    if (!iterate) return reduce<T, void>(results, previous => previous, undefined);
     switch (reduceArguments.length) {
       case 0:
         return reduce<T, U>(results, previous => previous);
@@ -92,7 +98,6 @@ export default class Command<T = void> implements Action<string, AsyncIterable<T
   static async substitute(command: string, args?: readonly string[], options?: SpawnOptions, stdin?: StdioOption): Promise<string> {
     const results = new Command(command, args, Object.assign({}, options, { stdio: [stdin, 'pipe', 'ignore'] }), async function* (child) {
       if (child.stdout === null) return;
-      child.stdout.unpipe(process.stdout);
       yield stringify(child.stdout);
     }).execute();
     return arrayify(results)
@@ -112,7 +117,7 @@ export default class Command<T = void> implements Action<string, AsyncIterable<T
     protected readonly command: string,
     protected readonly args: readonly string[] = [],
     protected readonly options: SpawnOptions = {},
-    protected readonly iterate: (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T> = (): never[] => [],
+    protected readonly iterate: (child: ChildProcess, ...spawnPrguments: SpawnPrguments) => Iterable<T> | AsyncIterable<T> = defaultIterate,
     exitStatusThreshold: number | ((exitStatus: number) => boolean) = 1,
     argumentsSizeMargin = 0
   ) {
@@ -128,8 +133,6 @@ export default class Command<T = void> implements Action<string, AsyncIterable<T
     const args = await this.configureArguments(parameters);
     const spawnArgs: SpawnPrguments = [this.command, args, this.options];
     const child = spawn(...spawnArgs);
-    child.stdout && child.stdout.pipe(process.stdout);
-    child.stderr && child.stderr.pipe(process.stderr);
     const promise = new Promise<number>((resolve, reject) => {
       child
         .once('error', reject)
