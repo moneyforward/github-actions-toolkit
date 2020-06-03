@@ -1,24 +1,17 @@
 const del = require('del');
 const gulp = require('gulp');
-
-function spawn(command, args = [], options) {
-  const child = require('child_process')
-    .spawn(command, args.filter(e => e === 0 || e), options);
-  if (child.stdout) child.stdout.pipe(process.stdout);
-  if (child.stderr) child.stderr.pipe(process.stderr);
-  return child;
-}
+const Command = require('@moneyforward/command').default;
 
 exports['transpile:tsc'] = function tsc() {
-  return spawn('tsc');
+  return Command.execute('tsc');
 }
 
 exports['lint:eslint'] = function eslint() {
-  return spawn('eslint', ['.', '--ext', '.js,.jsx,.ts,.tsx']);
+  return Command.execute('eslint', ['.', '--ext', '.js,.jsx,.ts,.tsx']);
 }
 
 exports['test:mocha'] = function mocha() {
-  return spawn('mocha', ['-c']);
+  return Command.execute('mocha', ['-c']);
 }
 
 exports['watch:typescript'] = function watchTypeScript() {
