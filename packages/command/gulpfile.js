@@ -2,8 +2,9 @@ const del = require('del');
 const gulp = require('gulp');
 
 function spawn(command, args = [], options) {
+  const spawnOptions = Object.assign({}, options, { shell: process.platform === 'win32' });
   const child = require('child_process')
-    .spawn(command, args.filter(e => e === 0 || e), options);
+    .spawn(command, args.filter(e => e === 0 || e), spawnOptions);
   if (child.stdout) child.stdout.pipe(process.stdout);
   if (child.stderr) child.stderr.pipe(process.stderr);
   return child;
