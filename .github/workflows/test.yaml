@@ -1,0 +1,10 @@
+---
+on: [push, pull_request]
+defaults:
+  timeout-minutes: 5
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      run: printenv
+      run: jq < "$GITHUB_EVENT_PATH"
