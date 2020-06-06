@@ -6,5 +6,5 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      run: printenv
-      run: jq < "$GITHUB_EVENT_PATH"
+      - run: printenv
+      - run: jq < "$GITHUB_EVENT_PATH"
