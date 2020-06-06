@@ -1,9 +1,8 @@
 ---
 on: [push, pull_request]
-defaults:
-  timeout-minutes: 5
 jobs:
   test:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - run: printenv
