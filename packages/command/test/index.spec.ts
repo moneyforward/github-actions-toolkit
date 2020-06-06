@@ -9,7 +9,7 @@ describe('Command', () => {
   describe('Command.execute', () => {
     it('should should spawn child process', async () => {
       const expected = 'hello, world!';
-      const args = ['-pe', 'process.argv[1]', expected];
+      const args = ['-e', 'process.stdout.write(process.argv[1])', expected];
       const file = path.join(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'test-')), 'out.txt');
       const { fd } = await fs.promises.open(file, 'w');
       try {
@@ -19,12 +19,12 @@ describe('Command', () => {
         fs.closeSync(fd);
       }
       const actual = await stringify(fs.createReadStream(file));
-      expect(actual).to.equal(expected + os.EOL);
+      expect(actual).to.equal(expected);
     });
 
     it('should throw an error if the exit status is non-zero', async () => {
       try {
-        await Command.execute('node', ['-pe', 'process.exit(1)']);
+        await Command.execute('node', ['-e', 'process.exit(1)']);
         expect.fail();
       } catch (error) {
         expect(error).to.equal(1);
@@ -32,10 +32,11 @@ describe('Command', () => {
     });
 
     it('should return single output value', async () => {
-      const expected = 'hello, world!' + os.EOL;
+      const expected = 'hello, world!';
+      const args = ['-e', 'process.stdout.write(process.argv[1])', expected];
       const actual = await Command.execute<string>(
         'node',
-        ['-pe', '"hello, world!"'],
+        args,
         undefined,
         undefined,
         async function* (child) {
